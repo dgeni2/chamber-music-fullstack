@@ -1,0 +1,364 @@
+// Music Harmonization Service
+// Extracted from Next.js route and converted to pure TypeScript
+
+import { JSDOM } from 'jsdom';
+import type {
+  Note,
+  Chord,
+  VoiceLeadingContext,
+  InstrumentConfig,
+  HarmonicAnalysis
+} from '../types/index.js';
+import {
+  stepToMidi,
+  midiToStep,
+  getKeyInfo,
+  getScaleNotes,
+  constrainToInstrumentRange,
+  findClosestPitch,
+  applyVoiceLeadingToVoice,
+  avoidParallelMotion,
+  selectChordDegree,
+  getChordQuality,
+  analyzeAndBuildChord,
+  validateHarmonicProgression,
+  refineHarmonicProgression,
+  findBestInversionForCommonTone,
+  smoothVoiceLeading,
+  generateHarmonicProgression,
+  generateHarmonicProgressionPolyphonic,
+  analyzeVerticalHarmony,
+  generateInstrumentPart,
+  voiceChord,
+  voiceChordPolyphonic,
+} from './helper-functions.js';
+import {
+  createMultiInstrumentHarmonyXML,
+  createCombinedMultiInstrumentXML,
+  createCombinedPolyphonicXML,
+} from './xml-generators.js';
+
+// Scale definitions
+const MAJOR_SCALE = [0, 2, 4, 5, 7, 9, 11];
+const MINOR_SCALE = [0, 2, 3, 5, 7, 8, 10];
+
+// Instrument configurations
+const INSTRUMENT_CONFIG: Record<string, InstrumentConfig> = {
+  // Treble Clef (G), Concert Pitch, High Range
+  Violin: { clefSign: "G", clefLine: 2, minMidi: 55, maxMidi: 96, transposition: 0 },
+  Flute: { clefSign: "G", clefLine: 2, minMidi: 60, maxMidi: 99, transposition: 0 },
+  Oboe: { clefSign: "G", clefLine: 2, minMidi: 58, maxMidi: 94, transposition: 0 },
+
+  // Bass Clef (F), Concert Pitch, Low Range
+  Cello: { clefSign: "F", clefLine: 4, minMidi: 36, maxMidi: 80, transposition: 0 },
+  Tuba: { clefSign: "F", clefLine: 4, minMidi: 21, maxMidi: 53, transposition: 0 },
+  Bassoon: { clefSign: "F", clefLine: 4, minMidi: 34, maxMidi: 74, transposition: 0 },
+
+  // Alto Clef (C), Concert Pitch, Mid-Range
+  Viola: { clefSign: "C", clefLine: 3, minMidi: 48, maxMidi: 77, transposition: 0 },
+
+  // Treble Clef (G), Transposing Instruments
+  "B-flat Clarinet": { clefSign: "G", clefLine: 2, minMidi: 53, maxMidi: 98, transposition: 2 },
+  "B-flat Trumpet": { clefSign: "G", clefLine: 2, minMidi: 53, maxMidi: 86, transposition: 2 },
+  "F Horn": { clefSign: "G", clefLine: 2, minMidi: 41, maxMidi: 84, transposition: 7 },
+
+  // Voices
+  Soprano: { clefSign: "G", clefLine: 2, minMidi: 60, maxMidi: 84, transposition: 0 },
+  "Tenor Voice": { clefSign: "G", clefLine: 2, minMidi: 48, maxMidi: 67, transposition: 12 },
+
+  // Default
+  Other: { clefSign: "G", clefLine: 2, minMidi: 40, maxMidi: 84, transposition: 0 },
+};
+
+// Main harmonization function
+export async function harmonizeMelody(
+  xmlContent: string,
+  instruments: string[]
+): Promise<{ harmonyOnlyXML: string; combinedXML: string }> {
+  
+  // Parse XML using jsdom for Node.js environment
+  const dom = new JSDOM(xmlContent, { contentType: "text/xml" });
+  const xmlDoc = dom.window.document;
+
+  const fifths = xmlDoc.querySelector("fifths")?.textContent || "0";
+  const mode = xmlDoc.querySelector("mode")?.textContent || "major";
+  const keyFifths = parseInt(fifths, 10);
+
+  const { root, scale } = getKeyInfo(keyFifths, mode);
+
+  console.log("[Harmonize] Key signature:", { fifths: keyFifths, mode, scale: getScaleNotes(root, scale) });
+  console.log("[Harmonize] Target instruments:", instruments);
+
+  const isPolyphonic = detectPolyphony(xmlDoc);
+  console.log("[Harmonize] Input type:", isPolyphonic ? "Polyphonic" : "Monophonic");
+
+  if (isPolyphonic) {
+    return harmonizePolyphonic(xmlDoc, instruments, root, scale, mode, fifths);
+  } else {
+    return harmonizeMonophonic(xmlDoc, instruments, root, scale, mode, fifths);
+  }
+}
+
+function detectPolyphony(xmlDoc: Document): boolean {
+  const parts = xmlDoc.querySelectorAll("score-part");
+  
+  if (parts.length > 1) {
+    console.log("[Harmonize] Detected", parts.length, "parts in score");
+    return true;
+  }
+
+  const voices = new Set<string>();
+  const noteElements = xmlDoc.querySelectorAll("note");
+
+  noteElements.forEach((noteEl) => {
+    const voice = noteEl.querySelector("voice")?.textContent;
+    if (voice) {
+      voices.add(voice);
+    }
+  });
+
+  if (voices.size > 1) {
+    console.log("[Harmonize] Detected", voices.size, "voices in single part");
+    return true;
+  }
+
+  return false;
+}
+
+function harmonizeMonophonic(
+  xmlDoc: Document,
+  instruments: string[],
+  root: number,
+  scale: number[],
+  mode: string,
+  fifths: string
+): { harmonyOnlyXML: string; combinedXML: string } {
+  const melodyNotes = extractNotes(xmlDoc);
+  console.log("[Harmonize] Found", melodyNotes.length, "melody notes");
+
+  let harmonicProgression = generateHarmonicProgression(melodyNotes, root, scale, mode, instruments.length > 1);
+  console.log("[Harmonize] Generated", harmonicProgression.length, "chords");
+
+  const analysis = validateHarmonicProgression(harmonicProgression, melodyNotes, root, scale, mode === "major");
+  console.log("[Harmonize] Harmonic validation score:", analysis.score);
+
+  if (analysis.score < 70) {
+    console.log("[Harmonize] Refinement: Applying harmonic improvements...");
+    harmonicProgression = refineHarmonicProgression(harmonicProgression, melodyNotes, root, scale, mode === "major");
+  }
+
+  const instrumentVoiceMappings: Record<string, 1 | 2 | 3> = {};
+  const voiceOrder: (1 | 2 | 3)[] = [1, 3, 2];
+  instruments.forEach((instrument, index) => {
+    instrumentVoiceMappings[instrument] = voiceOrder[index % 3];
+  });
+
+  const harmoniesByInstrument: Record<string, Note[]> = {};
+
+  for (const instrument of instruments) {
+    const assignedVoice = instrumentVoiceMappings[instrument];
+    const instrumentConfig = INSTRUMENT_CONFIG[instrument] || INSTRUMENT_CONFIG["Other"];
+    console.log(`[Harmonize] Generating ${instrument} as voice ${assignedVoice}...`);
+
+    const instrumentNotes = generateInstrumentPart(harmonicProgression, assignedVoice, instrumentConfig, melodyNotes);
+    harmoniesByInstrument[instrument] = instrumentNotes;
+  }
+
+  const harmonyOnlyXML = createMultiInstrumentHarmonyXML(xmlDoc, harmoniesByInstrument);
+  const combinedXML = createCombinedMultiInstrumentXML(xmlDoc, melodyNotes, harmoniesByInstrument);
+
+  return { harmonyOnlyXML, combinedXML };
+}
+
+function harmonizePolyphonic(
+  xmlDoc: Document,
+  instruments: string[],
+  root: number,
+  scale: number[],
+  mode: string,
+  fifths: string
+): { harmonyOnlyXML: string; combinedXML: string } {
+  const melodicLines = extractNotesPolyphonic(xmlDoc);
+  console.log("[Harmonize] Extracted", melodicLines.length, "melodic lines");
+
+  let harmonicProgression = generateHarmonicProgressionPolyphonic(
+    melodicLines,
+    root,
+    scale,
+    mode,
+    instruments.length > 1
+  );
+
+  const maxLength = Math.max(...melodicLines.map((line) => line.length));
+  const alignedMelodyNotes: Note[] = [];
+
+  for (let i = 0; i < maxLength; i++) {
+    if (i < melodicLines[0].length) {
+      alignedMelodyNotes.push(melodicLines[0][i]);
+    } else {
+      const lastNote = melodicLines[0][melodicLines[0].length - 1];
+      alignedMelodyNotes.push({
+        pitch: -1,
+        duration: lastNote?.duration || 1,
+        offset: lastNote ? lastNote.offset + lastNote.duration : i,
+      });
+    }
+  }
+
+  const analysis = validateHarmonicProgression(harmonicProgression, alignedMelodyNotes, root, scale, mode === "major");
+  console.log("[Harmonize] Polyphonic validation score:", analysis.score);
+
+  if (analysis.score < 70) {
+    harmonicProgression = refineHarmonicProgression(harmonicProgression, alignedMelodyNotes, root, scale, mode === "major");
+  }
+
+  const instrumentVoiceMappings: Record<string, 1 | 2 | 3> = {};
+  const voiceOrder: (1 | 2 | 3)[] = [1, 3, 2];
+  instruments.forEach((instrument, index) => {
+    instrumentVoiceMappings[instrument] = voiceOrder[index % 3];
+  });
+
+  const harmoniesByInstrument: Record<string, Note[]> = {};
+
+  for (const instrument of instruments) {
+    const assignedVoice = instrumentVoiceMappings[instrument];
+    const instrumentConfig = INSTRUMENT_CONFIG[instrument] || INSTRUMENT_CONFIG["Other"];
+
+    const instrumentNotes = generateInstrumentPart(harmonicProgression, assignedVoice, instrumentConfig, alignedMelodyNotes);
+    harmoniesByInstrument[instrument] = instrumentNotes;
+  }
+
+  const harmonyOnlyXML = createMultiInstrumentHarmonyXML(xmlDoc, harmoniesByInstrument);
+  const combinedXML = createCombinedPolyphonicXML(xmlDoc, melodicLines, harmoniesByInstrument, fifths, mode);
+
+  return { harmonyOnlyXML, combinedXML };
+}
+
+// ========== Helper Functions ==========
+
+function extractNotes(xmlDoc: Document): Note[] {
+  const notes: Note[] = [];
+  const noteElements = xmlDoc.querySelectorAll("note");
+  let currentOffset = 0;
+
+  noteElements.forEach((noteEl) => {
+    const isRest = noteEl.querySelector("rest") !== null;
+    const chordTag = noteEl.querySelector("chord");
+    const isChord = chordTag !== null;
+
+    if (isChord) {
+      return;
+    }
+
+    const durationEl = noteEl.querySelector("duration");
+    const duration = durationEl ? parseFloat(durationEl.textContent || "1") : 1;
+
+    if (isRest) {
+      notes.push({ pitch: -1, duration, offset: currentOffset });
+      currentOffset += duration;
+      return;
+    }
+
+    const pitchEl = noteEl.querySelector("pitch");
+    if (pitchEl) {
+      const step = pitchEl.querySelector("step")?.textContent || "C";
+      const octave = parseInt(pitchEl.querySelector("octave")?.textContent || "4", 10);
+      const alter = parseInt(pitchEl.querySelector("alter")?.textContent || "0", 10);
+
+      const midi = stepToMidi(step, octave, alter);
+      notes.push({ pitch: midi, duration, offset: currentOffset });
+      currentOffset += duration;
+    }
+  });
+
+  return notes;
+}
+
+function extractNotesPolyphonic(xmlDoc: Document): Note[][] {
+  const parts = xmlDoc.querySelectorAll("part");
+  
+  if (parts.length > 1) {
+    const melodicLines: Note[][] = [];
+    
+    parts.forEach((part) => {
+      const partNotes: Note[] = [];
+      const noteElements = part.querySelectorAll("note");
+      let currentOffset = 0;
+
+      noteElements.forEach((noteEl) => {
+        const isRest = noteEl.querySelector("rest") !== null;
+        const chordTag = noteEl.querySelector("chord");
+        const isChord = chordTag !== null;
+
+        if (isChord) return;
+
+        const durationEl = noteEl.querySelector("duration");
+        const duration = durationEl ? parseFloat(durationEl.textContent || "1") : 1;
+
+        if (isRest) {
+          partNotes.push({ pitch: -1, duration, offset: currentOffset });
+          currentOffset += duration;
+          return;
+        }
+
+        const pitchEl = noteEl.querySelector("pitch");
+        if (pitchEl) {
+          const step = pitchEl.querySelector("step")?.textContent || "C";
+          const octave = parseInt(pitchEl.querySelector("octave")?.textContent || "4", 10);
+          const alter = parseInt(pitchEl.querySelector("alter")?.textContent || "0", 10);
+
+          const midi = stepToMidi(step, octave, alter);
+          partNotes.push({ pitch: midi, duration, offset: currentOffset });
+          currentOffset += duration;
+        }
+      });
+
+      melodicLines.push(partNotes);
+    });
+
+    return melodicLines;
+  }
+
+  const voiceMap = new Map<string, Note[]>();
+  const noteElements = xmlDoc.querySelectorAll("note");
+  const voiceOffsets = new Map<string, number>();
+
+  noteElements.forEach((noteEl) => {
+    const voiceEl = noteEl.querySelector("voice");
+    const voice = voiceEl?.textContent || "1";
+
+    if (!voiceMap.has(voice)) {
+      voiceMap.set(voice, []);
+      voiceOffsets.set(voice, 0);
+    }
+
+    const isRest = noteEl.querySelector("rest") !== null;
+    const chordTag = noteEl.querySelector("chord");
+    const isChord = chordTag !== null;
+
+    if (isChord) return;
+
+    const durationEl = noteEl.querySelector("duration");
+    const duration = durationEl ? parseFloat(durationEl.textContent || "1") : 1;
+    const currentOffset = voiceOffsets.get(voice) || 0;
+
+    if (isRest) {
+      voiceMap.get(voice)!.push({ pitch: -1, duration, offset: currentOffset });
+      voiceOffsets.set(voice, currentOffset + duration);
+      return;
+    }
+
+    const pitchEl = noteEl.querySelector("pitch");
+    if (pitchEl) {
+      const step = pitchEl.querySelector("step")?.textContent || "C";
+      const octave = parseInt(pitchEl.querySelector("octave")?.textContent || "4", 10);
+      const alter = parseInt(pitchEl.querySelector("alter")?.textContent || "0", 10);
+
+      const midi = stepToMidi(step, octave, alter);
+      voiceMap.get(voice)!.push({ pitch: midi, duration, offset: currentOffset });
+      voiceOffsets.set(voice, currentOffset + duration);
+    }
+  });
+
+  return Array.from(voiceMap.values());
+}
