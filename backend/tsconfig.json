@@ -2,8 +2,7 @@
   "compilerOptions": {
     "target": "ES2022",
     "module": "ESNext",
-    "lib": ["ES2022", "DOM", "DOM.Iterable"],
-    "jsx": "react-jsx",
+    "lib": ["ES2022"],
     "moduleResolution": "bundler",
     "rootDir": "./src",
     "outDir": "./dist",
@@ -18,11 +17,24 @@
     "sourceMap": true,
     "types": ["node"]
   },
-  "include": ["src/**/*"],
+  "include": [
+    "src/server.ts",
+    "src/routes/**/*",
+    "src/middleware/**/*",
+    "src/services/helper-functions.ts",
+    "src/types/**/*"
+  ],
   "exclude": [
     "node_modules",
     "dist",
     "v0version",
+    "src/App.tsx",
+    "src/main.tsx",
+    "src/components/**/*",
+    "src/assets/**/*",
+    "src/config/**/*",
+    "src/imports/**/*",
+    "src/styles/**/*",
     "src/services/helper-functions-CLEAN.ts",
     "src/services/helper-functions-CURRENT-BROKEN.ts",
     "src/services/helper-functions-v0-extracted.ts",
