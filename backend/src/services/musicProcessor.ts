@@ -1,7 +1,7 @@
 // Music Harmonization Service
 // Extracted from Next.js route and converted to pure TypeScript
 
-import { JSDOM } from 'jsdom';
+import { DOMParser, XMLSerializer } from 'xmldom';
 import type {
   Note,
   Chord,
@@ -75,9 +75,9 @@ export async function harmonizeMelody(
   instruments: string[]
 ): Promise<{ harmonyOnlyXML: string; combinedXML: string }> {
   
-  // Parse XML using jsdom for Node.js environment
-  const dom = new JSDOM(xmlContent, { contentType: "text/xml" });
-  const xmlDoc = dom.window.document;
+  // Parse XML using xmldom for Node.js environment
+  const parser = new DOMParser();
+  const xmlDoc = parser.parseFromString(xmlContent, 'text/xml');
 
   const fifths = xmlDoc.querySelector("fifths")?.textContent || "0";
   const mode = xmlDoc.querySelector("mode")?.textContent || "major";
