@@ -1,75 +1,63 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
-import express, { type Request, type Response, type NextFunction } from 'express';
-import cors from 'cors';
 
-let app: express.Application | null = null;
+export default async function handler(req: VercelRequest, res: VercelResponse) {
+  // Set CORS headers
+  res.setHeader('Access-Control-Allow-Credentials', 'true');
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Access-Control-Allow-Methods', 'GET,POST,PUT,DELETE,OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
 
-// Initialize app lazily
-function getApp() {
-  if (app) return app;
-  
-  app = express();
+  // Handle preflight
+  if (req.method === 'OPTIONS') {
+    res.status(200).end();
+    return;
+  }
 
-  // Middleware
-  app.use(express.json());
-  app.use(express.urlencoded({ extended: true }));
-
-  // Request logging middleware
-  app.use((req: Request, res: Response, next: NextFunction) => {
-    const timestamp = new Date().toISOString();
-    console.log(`[${timestamp}] ${req.method} ${req.url}`);
-    next();
-  });
-
-  // CORS configuration for API routes
-  const apiCorsOptions = cors({
-    origin: true, // Allow all origins in serverless environment
-    credentials: true
-  });
-
-  // Routes
-  app.get('/api/health', apiCorsOptions, (req: Request, res: Response) => {
-    res.json({ 
-      status: 'ok', 
-      message: 'HarmonyForge API is running',
-      timestamp: new Date().toISOString(),
-      environment: 'vercel-serverless'
-    });
-  });
-
-  // Lazy load harmonize router to avoid import issues
-  app.use('/api/harmonize', apiCorsOptions, async (req: Request, res: Response, next: NextFunction) => {
-    try {
-      const { default: harmonizeRouter } = await import('../backend/src/routes/harmonize.js');
-      harmonizeRouter(req, res, next);
-    } catch (error) {
-      console.error('[Harmonize Router Error]', error);
-      next(error);
-    }
-  });
-
-  // Global error handler
-  app.use((err: Error, req: Request, res: Response, next: NextFunction) => {
-    console.error('[Error]', err);
-    
-    res.status(500).json({
-      error: err.message || 'Internal server error',
-      details: process.env.NODE_ENV === 'development' ? err.stack : undefined
-    });
-  });
-
-  return app;
-}
-
-// Vercel serverless handler
-export default function handler(req: VercelRequest, res: VercelResponse) {
   try {
-    const app = getApp();
-    return app(req as any, res as any);
+    const { url } = req;
+    
+    // Health check
+    if (url?.includes('/health')) {
+      return res.status(200).json({ 
+        status: 'ok', 
+        message: 'HarmonyForge API is running',
+        timestamp: new Date().toISOString(),
+        environment: 'vercel-serverless'
+      });
+    }
+
+    // Harmonize endpoint
+    if (url?.includes('/harmonize')) {
+      // Dynamically import Express app for harmonize functionality
+      const express = await import('express');
+      const cors = await import('cors');
+      const { default: harmonizeRouter } = await import('../backend/dist/routes/harmonize.js');
+      
+      const app = express.default();
+      app.use(express.default.json());
+      app.use(express.default.urlencoded({ extended: true }));
+      app.use(cors.default({ origin: true, credentials: true }));
+      app.use('/', harmonizeRouter);
+      
+      // Use app as middleware
+      return new Promise((resolve, reject) => {
+        app(req as any, res as any, (err: any) => {
+          if (err) reject(err);
+          else resolve(undefined);
+        });
+      });
+    }
+
+    // Default 404
+    return res.status(404).json({ 
+      error: 'Not found',
+      path: url 
+    });
+
   } catch (error) {
-    console.error('[Handler Error]', error);
+    console.error('[API Error]', error);
     return res.status(500).json({
-      error: 'Failed to initialize API handler',
+      error: 'Internal server error',
       message: error instanceof Error ? error.message : 'Unknown error'
     });
   }
