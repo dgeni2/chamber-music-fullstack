@@ -17,5 +17,13 @@
     "sourceMap": true
   },
   "include": ["src/**/*"],
-  "exclude": ["node_modules", "dist", "v0version"]
+  "exclude": [
+    "node_modules",
+    "dist",
+    "v0version",
+    "src/services/helper-functions-CLEAN.ts",
+    "src/services/helper-functions-CURRENT-BROKEN.ts",
+    "src/services/helper-functions-v0-extracted.ts",
+    "src/services/helper-functions.ts.old"
+  ]
 }
