@@ -30,7 +30,6 @@ import {
   analyzeVerticalHarmony,
   generateInstrumentPart,
   voiceChord,
-  voiceChordPolyphonic,
 } from './helper-functions.js';
 import {
   createMultiInstrumentHarmonyXML,
