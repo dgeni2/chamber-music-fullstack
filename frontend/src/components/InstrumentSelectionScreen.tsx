@@ -1,132 +1,20 @@
 import { useState, useEffect } from 'react';
-import { X, Music } from 'lucide-react';
+import { X } from 'lucide-react';
 import { Button } from './ui/button';
-import { Card, CardContent } from './ui/card';
 import AppHeader from './AppHeader';
 import PageHeader from './PageHeader';
 import Breadcrumbs from './Breadcrumbs';
-import { ChevronDownIcon } from './icons';
 import { ApiService } from '../services/api';
-
-function AccordionItem({ 
-  label, 
-  options, 
-  value, 
-  onChange 
-}: { 
-  label: string; 
-  options: string[]; 
-  value: string;
-  onChange: (value: string) => void;
-}) {
-  const [isOpen, setIsOpen] = useState(false);
-
-  return (
-    <div className="relative shrink-0 w-full sm:w-[240px] md:w-[260px] lg:w-[272px]" data-name="Accordion Item">
-      <div 
-        className="bg-[rgba(229,221,213,0.2)] box-border content-stretch flex items-center p-[18px] sm:p-[22px] md:p-[24px] lg:p-[25.6px] relative rounded-[12.8px] cursor-pointer hover:bg-[rgba(229,221,213,0.3)] transition-colors"
-        onClick={() => setIsOpen(!isOpen)}
-      >
-        <div aria-hidden="true" className="absolute border-[#e5ddd5] border-[1.6px] border-solid inset-0 pointer-events-none rounded-[12.8px]" />
-        <div className="basis-0 content-stretch flex gap-[12.8px] grow items-center min-h-px min-w-px relative shrink-0" data-name="Accordion Title">
-          <p className="basis-0 font-['Figtree:SemiBold',_sans-serif] font-semibold grow leading-[1.4] min-h-px min-w-px relative shrink-0 text-[#1e1e1e] text-[15px] sm:text-[16px] md:text-[17px] lg:text-[18px]">
-            {value || label}
-          </p>
-          <ChevronDownIcon isOpen={isOpen} />
-        </div>
-      </div>
-      
-      {isOpen && (
-        <div className="absolute top-full left-0 right-0 mt-2 bg-white rounded-[12.8px] shadow-lg border border-[#e5ddd5] overflow-hidden z-10">
-          {options.map((option, index) => (
-            <div
-              key={index}
-              className="px-[18px] sm:px-[22px] md:px-[24px] lg:px-[25.6px] py-[14px] sm:py-[15px] md:py-[16px] hover:bg-[rgba(231,109,87,0.1)] cursor-pointer font-['Figtree:SemiBold',_sans-serif] font-semibold text-[#1e1e1e] text-[14px] sm:text-[15px] md:text-[16px] transition-colors"
-              onClick={() => {
-                onChange(option);
-                setIsOpen(false);
-              }}
-            >
-              {option}
-            </div>
-          ))}
-        </div>
-      )}
-    </div>
-  );
-}
-
-function Frame11({ 
-  musicalStyle, 
-  difficulty,
-  onMusicalStyleChange,
-  onDifficultyChange
-}: { 
-  musicalStyle: string;
-  difficulty: string;
-  onMusicalStyleChange: (value: string) => void;
-  onDifficultyChange: (value: string) => void;
-}) {
-  const musicalStyleOptions = ['Classical', 'Jazz', 'Pop', 'Rock', 'Blues', 'Folk'];
-  const difficultyOptions = ['Beginner', 'Intermediate', 'Advanced', 'Expert'];
-
-  return (
-    <div className="content-stretch flex flex-col sm:flex-row gap-[24px] sm:gap-[32px] md:gap-[40px] lg:gap-[46px] items-start sm:items-center relative shrink-0 w-full">
-      <AccordionItem 
-        label="Musical Style" 
-        options={musicalStyleOptions}
-        value={musicalStyle}
-        onChange={onMusicalStyleChange}
-      />
-      <AccordionItem 
-        label="Difficulty" 
-        options={difficultyOptions}
-        value={difficulty}
-        onChange={onDifficultyChange}
-      />
-    </div>
-  );
-}
-
-function Frame12({ 
-  musicalStyle, 
-  difficulty,
-  onMusicalStyleChange,
-  onDifficultyChange
-}: { 
-  musicalStyle: string;
-  difficulty: string;
-  onMusicalStyleChange: (value: string) => void;
-  onDifficultyChange: (value: string) => void;
-}) {
-  return (
-    <div className="content-stretch flex flex-col gap-[40px] md:gap-[60px] items-start relative shrink-0 w-full max-w-[1100px]">
-      <Frame11 
-        musicalStyle={musicalStyle}
-        difficulty={difficulty}
-        onMusicalStyleChange={onMusicalStyleChange}
-        onDifficultyChange={onDifficultyChange}
-      />
-    </div>
-  );
-}
 
 // Import instrument images
 import Cello1 from '../assets/cello-1.png';
-import DoubleBassImg from '../assets/Double Bass.png';
 import ViolaImg from '../assets/Viola.png';
 import ViolinImg from '../assets/violin.png';
 
 // Icon components for each instrument
-function CelloFullIcon() {
+function ViolinIcon() {
   return (
-    <img src={Cello1} alt="Full-size cello" className="w-full h-full object-contain" />
-  );
-}
-
-function DoubleBassIcon() {
-  return (
-    <img src={DoubleBassImg} alt="Double bass" className="w-full h-full object-contain" />
+    <img src={ViolinImg} alt="Violin" className="w-full h-full object-contain" />
   );
 }
 
@@ -136,9 +24,20 @@ function ViolaIcon() {
   );
 }
 
-function ViolinIcon() {
+function CelloIcon() {
   return (
-    <img src={ViolinImg} alt="Violin" className="w-full h-full object-contain" />
+    <img src={Cello1} alt="Cello" className="w-full h-full object-contain" />
+  );
+}
+
+// Placeholder icon for instruments without images
+function PlaceholderIcon({ instrument }: { instrument: string }) {
+  return (
+    <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-[rgba(231,109,87,0.1)] to-[rgba(231,109,87,0.05)] rounded-lg">
+      <span className="text-4xl font-bold text-[#e76d57] opacity-50">
+        {instrument.charAt(0)}
+      </span>
+    </div>
   );
 }
 
@@ -185,97 +84,158 @@ function InstrumentCard({
 }
 
 function Frame9({ selectedInstruments, onInstrumentToggle, maxSelection }: { selectedInstruments: string[]; onInstrumentToggle: (name: string) => void; maxSelection: number }) {
-  const instruments = [
-    { 
-      icon: <CelloFullIcon />, 
-      name: 'Full-Size Cello',
-      range: 'C2 to A5',
-      description: 'Standard professional cello with rich, deep tones'
+  const instrumentCategories = [
+    {
+      category: 'Strings',
+      instruments: [
+        {
+          icon: <ViolinIcon />,
+          name: 'Violin',
+          range: 'G3 to E7',
+          description: 'Brilliant, agile soprano voice of the string family'
+        },
+        {
+          icon: <ViolaIcon />,
+          name: 'Viola',
+          range: 'C3 to E6',
+          description: 'Rich alto voice with warm, mellow timbre'
+        },
+        {
+          icon: <CelloIcon />,
+          name: 'Cello',
+          range: 'C2 to A5',
+          description: 'Deep, rich tones with warm character'
+        },
+      ]
     },
-    { 
-      icon: <DoubleBassIcon />, 
-      name: 'Double Bass',
-      range: 'E1 to G4',
-      description: 'The largest and lowest-pitched bowed string instrument'
+    {
+      category: 'Woodwinds',
+      instruments: [
+        {
+          icon: <PlaceholderIcon instrument="Flute" />,
+          name: 'Flute',
+          range: 'C4 to C7',
+          description: 'Bright, clear tone with excellent agility'
+        },
+        {
+          icon: <PlaceholderIcon instrument="Oboe" />,
+          name: 'Oboe',
+          range: 'Bb3 to A6',
+          description: 'Penetrating, reedy sound with expressive quality'
+        },
+        {
+          icon: <PlaceholderIcon instrument="Clarinet" />,
+          name: 'B-flat Clarinet',
+          range: 'D3 to Bb6',
+          description: 'Versatile with wide dynamic range'
+        },
+        {
+          icon: <PlaceholderIcon instrument="Bassoon" />,
+          name: 'Bassoon',
+          range: 'Bb1 to Eb5',
+          description: 'Deep, reedy bass voice of the woodwinds'
+        },
+      ]
     },
-    { 
-      icon: <ViolaIcon />, 
-      name: 'Viola',
-      range: 'C3 to E6',
-      description: 'Rich alto voice with warm, mellow timbre'
+    {
+      category: 'Brass',
+      instruments: [
+        {
+          icon: <PlaceholderIcon instrument="Trumpet" />,
+          name: 'B-flat Trumpet',
+          range: 'E3 to Bb5',
+          description: 'Brilliant, penetrating tone with power'
+        },
+        {
+          icon: <PlaceholderIcon instrument="Horn" />,
+          name: 'F Horn',
+          range: 'B2 to F5',
+          description: 'Noble, mellow tone with rich harmonics'
+        },
+        {
+          icon: <PlaceholderIcon instrument="Tuba" />,
+          name: 'Tuba',
+          range: 'D1 to F4',
+          description: 'Deep, powerful bass foundation'
+        },
+      ]
     },
-    { 
-      icon: <ViolinIcon />, 
-      name: 'Violin',
-      range: 'G3 to E7',
-      description: 'Brilliant, agile soprano voice of the string family'
-    },
+    {
+      category: 'Voices',
+      instruments: [
+        {
+          icon: <PlaceholderIcon instrument="Soprano" />,
+          name: 'Soprano',
+          range: 'C4 to C6',
+          description: 'Highest female voice with clear, bright tone'
+        },
+        {
+          icon: <PlaceholderIcon instrument="Tenor" />,
+          name: 'Tenor Voice',
+          range: 'C3 to C5',
+          description: 'Highest male voice with bright character'
+        },
+      ]
+    }
   ];
 
   return (
-    <div className="content-start flex flex-col gap-[30px] sm:gap-[35px] md:gap-[40px] items-start relative shrink-0 w-full">
-      <div className="flex flex-nowrap justify-start gap-[16px] sm:gap-[20px] md:gap-[24px] lg:gap-[32px] items-center relative w-full py-4">
-        {instruments.map((instrument, i) => {
-          const isSelected = selectedInstruments.includes(instrument.name);
-          const canSelect = isSelected || selectedInstruments.length < maxSelection;
-          
-          return (
-            <div key={i} className={`flex-shrink-0 w-[240px] sm:w-[260px] md:w-[280px] ${!canSelect ? 'opacity-40 pointer-events-none' : ''}`}>
-              <InstrumentCard 
-                icon={instrument.icon}
-                name={instrument.name}
-                range={instrument.range}
-                description={instrument.description}
-                isSelected={isSelected}
-                onClick={() => canSelect && onInstrumentToggle(instrument.name)}
-              />
-            </div>
-          );
-        })}
-      </div>
+    <div className="content-start flex flex-col gap-[40px] sm:gap-[48px] md:gap-[56px] items-start relative shrink-0 w-full">
+      {instrumentCategories.map((category, categoryIndex) => (
+        <div key={categoryIndex} className="w-full">
+          <h3 className="font-['Figtree:Bold',_sans-serif] font-bold text-[20px] sm:text-[22px] md:text-[24px] text-[#201315] mb-[20px] sm:mb-[24px]">
+            {category.category}
+          </h3>
+          <div className="flex flex-wrap gap-[16px] sm:gap-[20px] md:gap-[24px]">
+            {category.instruments.map((instrument, i) => {
+              const isSelected = selectedInstruments.includes(instrument.name);
+              const canSelect = isSelected || selectedInstruments.length < maxSelection;
+
+              return (
+                <div key={i} className={`w-[calc(50%-8px)] sm:w-[calc(33.33%-14px)] md:w-[240px] lg:w-[260px] ${!canSelect ? 'opacity-40 pointer-events-none' : ''}`}>
+                  <InstrumentCard
+                    icon={instrument.icon}
+                    name={instrument.name}
+                    range={instrument.range}
+                    description={instrument.description}
+                    isSelected={isSelected}
+                    onClick={() => canSelect && onInstrumentToggle(instrument.name)}
+                  />
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      ))}
     </div>
   );
 }
 
-function Frame13({ 
-  musicalStyle, 
-  difficulty,
+function Frame13({
   selectedInstruments,
-  onMusicalStyleChange,
-  onDifficultyChange,
   onInstrumentToggle,
   onGenerate,
   isGenerating,
   error
-}: { 
-  musicalStyle: string;
-  difficulty: string;
+}: {
   selectedInstruments: string[];
-  onMusicalStyleChange: (value: string) => void;
-  onDifficultyChange: (value: string) => void;
   onInstrumentToggle: (name: string) => void;
   onGenerate: () => void;
   isGenerating?: boolean;
   error?: string | null;
 }) {
-  const canContinue = musicalStyle && difficulty && selectedInstruments.length > 0 && !isGenerating;
-  
+  const canContinue = selectedInstruments.length > 0 && !isGenerating;
+
   return (
     <div className="content-stretch flex flex-col gap-[40px] md:gap-[60px] items-start w-full">
-      <Frame12 
-        musicalStyle={musicalStyle}
-        difficulty={difficulty}
-        onMusicalStyleChange={onMusicalStyleChange}
-        onDifficultyChange={onDifficultyChange}
-      />
       <Frame9 selectedInstruments={selectedInstruments} onInstrumentToggle={onInstrumentToggle} maxSelection={4} />
-      
+
       {error && (
         <div className="self-center w-full max-w-[400px] p-4 bg-red-50 border-2 border-red-200 rounded-lg text-red-700 text-center">
           {error}
         </div>
       )}
-      
+
       <Button
         onClick={onGenerate}
         className="self-center min-w-[200px] h-12 text-base bg-gradient-to-r from-[#201315] to-[#e76d57] hover:opacity-90"
@@ -307,15 +267,13 @@ function ToastNotification({ count, maxSelection, onDismiss }: { count: number; 
   );
 }
 
-export default function InstrumentSelectionScreen({ 
-  onGenerate, 
-  uploadedFile 
-}: { 
+export default function InstrumentSelectionScreen({
+  onGenerate,
+  uploadedFile
+}: {
   onGenerate: (data: any) => void;
   uploadedFile: File | null;
 }) {
-  const [musicalStyle, setMusicalStyle] = useState('');
-  const [difficulty, setDifficulty] = useState('');
   const [selectedInstruments, setSelectedInstruments] = useState<string[]>([]);
   const [showToast, setShowToast] = useState(false);
   const [isGenerating, setIsGenerating] = useState(false);
@@ -330,8 +288,8 @@ export default function InstrumentSelectionScreen({
   }, [selectedInstruments]);
 
   const handleInstrumentToggle = (name: string) => {
-    setSelectedInstruments(prev => 
-      prev.includes(name) 
+    setSelectedInstruments(prev =>
+      prev.includes(name)
         ? prev.filter(i => i !== name)
         : prev.length < 4 ? [...prev, name] : prev
     );
@@ -343,8 +301,8 @@ export default function InstrumentSelectionScreen({
       return;
     }
 
-    if (selectedInstruments.length === 0 || !musicalStyle || !difficulty) {
-      setError('Please select instruments, style, and difficulty');
+    if (selectedInstruments.length === 0) {
+      setError('Please select at least one instrument');
       return;
     }
 
@@ -352,23 +310,17 @@ export default function InstrumentSelectionScreen({
     setError(null);
 
     try {
-      const response = await ApiService.harmonize({
+      // Call real backend API
+      const result = await ApiService.harmonize({
         file: uploadedFile,
-        instruments: selectedInstruments,
-        style: musicalStyle,
-        difficulty: difficulty
+        instruments: selectedInstruments
       });
 
-      console.log('[Frontend] Harmonization successful:', response.metadata);
-      console.log('[Frontend] Full response:', response);
-      console.log('[Frontend] Has harmonyOnly:', !!response.harmonyOnly);
-      console.log('[Frontend] Has combined:', !!response.combined);
-      
+      console.log('[Frontend] Harmonization successful:', result.metadata);
+
       onGenerate({
-        ...response,
-        instruments: selectedInstruments,
-        style: musicalStyle,
-        difficulty: difficulty
+        ...result,
+        instruments: selectedInstruments
       });
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Failed to generate harmony';
@@ -392,15 +344,11 @@ export default function InstrumentSelectionScreen({
             currentStep={0}
           />
           <PageHeader
-            title="Choose your instruments, style and difficulty"
-            subtitle="Select up to 4 instruments and customize your musical preferences"
+            title="Choose your instruments"
+            subtitle="Select up to 4 instruments for your chamber ensemble"
           />
-          <Frame13 
-            musicalStyle={musicalStyle}
-            difficulty={difficulty}
+          <Frame13
             selectedInstruments={selectedInstruments}
-            onMusicalStyleChange={setMusicalStyle}
-            onDifficultyChange={setDifficulty}
             onInstrumentToggle={handleInstrumentToggle}
             onGenerate={handleGenerate}
             isGenerating={isGenerating}
@@ -409,8 +357,8 @@ export default function InstrumentSelectionScreen({
         </div>
       </div>
       {showToast && (
-        <ToastNotification 
-          count={selectedInstruments.length} 
+        <ToastNotification
+          count={selectedInstruments.length}
           maxSelection={4}
           onDismiss={() => setShowToast(false)}
         />

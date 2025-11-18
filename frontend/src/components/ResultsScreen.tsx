@@ -82,26 +82,16 @@ function Refresh() {
 
 function Frame6({
   instruments,
-  styles,
-  difficulty,
   onRegenerate,
   onEditInstrument,
-  onEditStyle,
-  onEditDifficulty,
 }: {
   instruments: string[];
-  styles: string[];
-  difficulty: string;
   onRegenerate: () => void;
   onEditInstrument: (tag: string, index: number) => void;
-  onEditStyle: (tag: string, index: number) => void;
-  onEditDifficulty: (tag: string, index: number) => void;
 }) {
   return (
     <div className="flex flex-col gap-3.5 flex-1 items-start w-full">
       <TagSection title="Instruments" tags={instruments} onEditTag={onEditInstrument} />
-      <TagSection title="Style" tags={styles} onEditTag={onEditStyle} />
-      <TagSection title="Difficulty" tags={[difficulty]} onEditTag={onEditDifficulty} />
       <div className="mt-1.5">
         <div
           onClick={onRegenerate}
@@ -433,24 +423,16 @@ function TagSection({
 
 function Frame13({
   instruments,
-  styles,
-  difficulty,
   onExpand,
   onRegenerate,
   onEditInstrument,
-  onEditStyle,
-  onEditDifficulty,
   hasData,
   musicXML,
 }: {
   instruments: string[];
-  styles: string[];
-  difficulty: string;
   onExpand: () => void;
   onRegenerate: () => void;
   onEditInstrument: (tag: string, index: number) => void;
-  onEditStyle: (tag: string, index: number) => void;
-  onEditDifficulty: (tag: string, index: number) => void;
   hasData: boolean;
   musicXML?: string;
 }) {
@@ -459,12 +441,8 @@ function Frame13({
       <Frame5 onExpand={onExpand} hasData={hasData} musicXML={musicXML} />
       <Frame6
         instruments={instruments}
-        styles={styles}
-        difficulty={difficulty}
         onRegenerate={onRegenerate}
         onEditInstrument={onEditInstrument}
-        onEditStyle={onEditStyle}
-        onEditDifficulty={onEditDifficulty}
       />
     </div>
   );
@@ -491,16 +469,12 @@ function Frame14({
   onRegenerate,
   onGenerateNew,
   onEditInstrument,
-  onEditStyle,
-  onEditDifficulty,
 }: {
   onExpand: () => void;
   data: ResultsData;
   onRegenerate: () => void;
   onGenerateNew: () => void;
   onEditInstrument: (tag: string, index: number) => void;
-  onEditStyle: (tag: string, index: number) => void;
-  onEditDifficulty: (tag: string, index: number) => void;
 }) {
   console.log('[ResultsScreen Frame14] data:', data);
   console.log('[ResultsScreen Frame14] data.harmonyOnly:', data.harmonyOnly);
@@ -509,19 +483,15 @@ function Frame14({
   const musicXML = data.combined?.content || data.harmonyOnly?.content;
   console.log('[ResultsScreen Frame14] hasData:', hasData);
   console.log('[ResultsScreen Frame14] musicXML length:', musicXML?.length);
-  
+
   return (
     <div className="content-stretch flex flex-col gap-5 md:gap-6 w-full">
       <div className="flex flex-col gap-5 items-start w-full">
         <Frame13
           instruments={data.instruments}
-          styles={[data.style]}
-          difficulty={data.difficulty}
           onExpand={onExpand}
           onRegenerate={onRegenerate}
           onEditInstrument={onEditInstrument}
-          onEditStyle={onEditStyle}
-          onEditDifficulty={onEditDifficulty}
           hasData={hasData}
           musicXML={musicXML}
         />
@@ -533,9 +503,12 @@ function Frame14({
   );
 }
 
-const INSTRUMENTS_OPTIONS = ['Full-Size Cello', 'Double Bass', 'Viola', 'Violin'];
-const STYLE_OPTIONS = ['Classical', 'Jazz', 'Pop', 'Rock', 'Blues', 'Folk'];
-const DIFFICULTY_OPTIONS = ['Beginner', 'Intermediate', 'Advanced', 'Expert'];
+const INSTRUMENTS_OPTIONS = [
+  'Violin', 'Viola', 'Cello',
+  'Flute', 'Oboe', 'B-flat Clarinet', 'Bassoon',
+  'B-flat Trumpet', 'F Horn', 'Tuba',
+  'Soprano', 'Tenor Voice'
+];
 
 export default function ResultsScreen({
   data,
@@ -561,8 +534,6 @@ export default function ResultsScreen({
   
   // Local state for edited data
   const [currentInstruments, setCurrentInstruments] = useState<string[]>(data.instruments);
-  const [currentStyle, setCurrentStyle] = useState<string>(data.style);
-  const [currentDifficulty, setCurrentDifficulty] = useState<string>(data.difficulty);
 
   const handleEdit = () => {
     setTempName(projectName);
@@ -628,29 +599,11 @@ export default function ResultsScreen({
     setIsEditDialogOpen(true);
   };
 
-  const handleEditStyle = (tag: string, index: number) => {
-    setEditType('style');
-    setEditIndex(index);
-    setEditValue(tag);
-    setIsEditDialogOpen(true);
-  };
-
-  const handleEditDifficulty = (tag: string, index: number) => {
-    setEditType('difficulty');
-    setEditIndex(index);
-    setEditValue(tag);
-    setIsEditDialogOpen(true);
-  };
-
   const handleSaveEdit = () => {
     if (editType === 'instrument') {
       const newInstruments = [...currentInstruments];
       newInstruments[editIndex] = editValue;
       setCurrentInstruments(newInstruments);
-    } else if (editType === 'style') {
-      setCurrentStyle(editValue);
-    } else if (editType === 'difficulty') {
-      setCurrentDifficulty(editValue);
     }
     setIsEditDialogOpen(false);
     // Just update the display - don't navigate away
@@ -722,16 +675,14 @@ export default function ResultsScreen({
             onExpand={() => setIsExpanded(true)}
             data={{
               instruments: currentInstruments,
-              style: currentStyle,
-              difficulty: currentDifficulty,
+              style: '',
+              difficulty: '',
               harmonyOnly: data.harmonyOnly,
               combined: data.combined,
             }}
             onRegenerate={onRegenerate}
             onGenerateNew={onGenerateNew}
             onEditInstrument={handleEditInstrument}
-            onEditStyle={handleEditStyle}
-            onEditDifficulty={handleEditDifficulty}
           />
         </div>
       </div>
@@ -747,37 +698,27 @@ export default function ResultsScreen({
         <DialogContent className="bg-white sm:max-w-[425px]">
           <DialogHeader>
             <DialogTitle className="font-['Figtree:Bold',_sans-serif] text-[20px] sm:text-[24px] text-[#201315]">
-              Edit {editType === 'instrument' ? 'Instrument' : editType === 'style' ? 'Style' : 'Difficulty'}
+              Edit Instrument
             </DialogTitle>
             <DialogDescription className="font-['SF_Pro_Rounded:Regular',_sans-serif] text-[#6B6563]">
-              Change the parameter and the music sheet will automatically refresh.
+              Change the instrument and the music sheet will automatically refresh.
             </DialogDescription>
           </DialogHeader>
-          
+
           <div className="grid gap-4 py-4">
             <div className="grid gap-2">
-              <label 
-                htmlFor="edit-value" 
+              <label
+                htmlFor="edit-value"
                 className="font-['Figtree:SemiBold',_sans-serif] text-[14px] text-[#201315]"
               >
-                Select New Value
+                Select New Instrument
               </label>
               <Select value={editValue} onValueChange={setEditValue}>
                 <SelectTrigger id="edit-value" className="w-full">
-                  <SelectValue placeholder="Choose an option" />
+                  <SelectValue placeholder="Choose an instrument" />
                 </SelectTrigger>
                 <SelectContent>
-                  {editType === 'instrument' && INSTRUMENTS_OPTIONS.map((option) => (
-                    <SelectItem key={option} value={option}>
-                      {option}
-                    </SelectItem>
-                  ))}
-                  {editType === 'style' && STYLE_OPTIONS.map((option) => (
-                    <SelectItem key={option} value={option}>
-                      {option}
-                    </SelectItem>
-                  ))}
-                  {editType === 'difficulty' && DIFFICULTY_OPTIONS.map((option) => (
+                  {INSTRUMENTS_OPTIONS.map((option) => (
                     <SelectItem key={option} value={option}>
                       {option}
                     </SelectItem>

@@ -1,0 +1,24 @@
+{
+  "name": "harmonyforge-backend",
+  "version": "1.0.0",
+  "description": "Backend harmonization API for HarmonyForge - AI-powered chamber music harmonization",
+  "main": "harmonize.ts",
+  "scripts": {
+    "test": "echo \"No tests specified\""
+  },
+  "dependencies": {
+    "@xmldom/xmldom": "^0.8.10"
+  },
+  "peerDependencies": {
+    "next": "^14.0.0"
+  },
+  "keywords": [
+    "music",
+    "harmonization",
+    "musicxml",
+    "chamber-music",
+    "ai"
+  ],
+  "author": "",
+  "license": "MIT"
+}

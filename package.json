@@ -1,19 +1,17 @@
 {
   "name": "harmonyforge",
   "version": "1.0.0",
-  "description": "HarmonyForge - Music Harmonization Application",
+  "description": "HarmonyForge - Music Harmonization Application (Frontend Only)",
   "type": "module",
   "scripts": {
-    "build": "npm run build:frontend && npm run build:backend",
-    "build:frontend": "cd frontend && npm install --include=dev && npm run build",
-    "build:backend": "cd backend && npm install --include=dev && npm run build",
-    "vercel-build": "npm run build",
-    "dev": "./start-server.sh",
-    "start": "cd backend && npm start"
+    "dev": "cd frontend && npm run dev",
+    "build": "cd frontend && npm run build",
+    "install": "cd frontend && npm install"
   },
   "keywords": [
     "music",
-    "harmonization"
+    "harmonization",
+    "frontend"
   ],
   "author": "",
   "license": "MIT",
