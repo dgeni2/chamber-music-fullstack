@@ -7,7 +7,9 @@
     "dev": "cd frontend && npm run dev",
     "build": "cd frontend && npm run build",
     "install": "cd frontend && npm install",
-    "verify-instruments": "node scripts/verify-instruments.cjs"
+    "install:all": "npm install && cd frontend && npm install && cd ../backend && npm install",
+    "verify-instruments": "node scripts/verify-instruments.cjs",
+    "clean": "rm -rf frontend/dist frontend/node_modules backend/node_modules node_modules"
   },
   "keywords": [
     "music",

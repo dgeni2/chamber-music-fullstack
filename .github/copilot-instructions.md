@@ -64,6 +64,12 @@ If adding a new instrument (explicit steps):
 5. Test with backend: `curl -X POST http://localhost:3001/api/harmonize -F "file=@melody.xml" -F "instruments=Violin,Alto Saxophone,Cello"`
 6. (Optional) Add unit/integration test and update `.claude/agents/` docs.
 
-References: `CLAUDE.md`, `README.md`, `INTEGRATION.md`, `backend/src/adapters/nextjs-adapter.js`, `frontend/src/components/InstrumentSelectionScreen.tsx`.
+References: `CLAUDE.md`, `README.md`, `INTEGRATION.md`, `DEPLOYMENT.md`, `backend/src/adapters/nextjs-adapter.js`, `frontend/src/components/InstrumentSelectionScreen.tsx`.
+
+Production deployment:
+- Frontend: Vercel (static SPA) — see `vercel.json` and `DEPLOYMENT.md`
+- Backend: Railway/Render/Vercel Serverless
+- Environment files: Copy `.env.example` to `.env.local` and configure URLs
+- Build locally: `cd frontend && npm run build && npx vite preview`
 
 If anything here is unclear or missing, tell me which part you want expanded (examples, file pointers, or workflows) and I will iterate.

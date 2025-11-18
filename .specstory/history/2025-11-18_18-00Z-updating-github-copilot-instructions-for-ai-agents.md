@@ -208,7 +208,7 @@ _**Agent (model copilot/gpt-5-mini)**_
 
 ---
 
-_**User (2025-11-18 19:26Z)**_
+_**User (2025-11-18 19:28Z)**_
 
 push the repo
 
@@ -220,6 +220,143 @@ I'll search for the voice-order mapping comment in the adapter, then update the 
 ```
 
 ```
+
+```
+
+```
+Now I'll commit and push the changes. Perfect! I've completed all the tasks:
+
+## Summary of Changes Pushed
+
+**1. Created `copilot-instructions.md`** — Concise AI agent guidance including:
+   - Quick dev run commands (backend + frontend in separate terminals)
+   - API contract with example request/response
+   - **Voice-order mapping snippet** with inline code example:
+     ```javascript
+     const voiceOrder = [1, 3, 2]; // Maps instruments to [alto, bass, tenor]
+     ```
+   - Critical conventions (exact instrument name matching required)
+   - Debugging shortcuts (health check, kill port, CORS config, verify script)
+   - Implementation patterns (deterministic output, caching, transposition rules)
+   - **Step-by-step guide for adding instruments** with concrete code examples for:
+     - Backend `INSTRUMENT_CONFIG` (e.g., Alto Saxophone entry)
+     - Frontend `InstrumentSelectionScreen.tsx` (UI card)
+     - Frontend `ResultsScreen.tsx` (options array)
+     - Verification and testing commands
+
+**2. Created `verify-instruments.cjs`** — Automated verification script that:
+   - Parses backend `INSTRUMENT_CONFIG` keys
+   - Parses frontend instrument lists from both UI components
+   - Compares and reports mismatches
+   - Exits with status code for CI/CD integration
+
+**3. Updated `package.json`** — Added npm script:
+   ```bash
+   npm run verify-instruments
+   ```
+
+**4. Verified** — Ran the script locally and confirmed all 12 instruments are synchronized ✅
+
+The changes are now pushed to `origin/main`. You can run `npm run verify-instruments` anytime to check instrument sync, and the Copilot instructions provide quick onboarding for AI agents working on this codebase.
+
+---
+
+_**User (2025-11-18 19:28Z)**_
+
+Organize repository to make it production ready
+
+---
+
+_**Agent (model copilot/claude-sonnet-4.5)**_
+
+I'll analyze the repository structure and make it production-ready by organizing files, adding necessary configuration, documentation, and deployment setup. 
+
+---
+
+_**User (2025-11-18 19:32Z)**_
+
+13:28:02.047 Running build in Washington, D.C., USA (East) – iad1
+13:28:02.048 Build machine configuration: 2 cores, 8 GB
+13:28:02.177 Cloning github.com/spatel54/chamber-music-fullstack (Branch: main, Commit: 0f13b0a)
+13:28:02.635 Cloning completed: 458.000ms
+13:28:03.261 Restored build cache from previous deployment (DMSDPhA1rzmXdzaScDYwBwzpYxcw)
+13:28:03.818 Warning: Detected "engines": { "node": ">=18.x" } in your `package.json` that will automatically upgrade when a new major Node.js Version is released. Learn More: http://vercel.link/node-version
+13:28:03.819 Running "vercel build"
+13:28:04.191 Vercel CLI 48.10.3
+13:28:04.891 Warning: Detected "engines": { "node": ">=18.x" } in your `package.json` that will automatically upgrade when a new major Node.js Version is released. Learn More: http://vercel.link/node-version
+13:28:04.893 Running "install" command: `npm install`...
+13:28:05.759 
+13:28:05.760 > harmonyforge@1.0.0 install
+13:28:05.760 > cd frontend && npm install
+13:28:05.760 
+13:28:07.297 
+13:28:07.298 up to date, audited 366 packages in 1s
+13:28:07.298 
+13:28:07.299 40 packages are looking for funding
+13:28:07.299   run `npm fund` for details
+13:28:07.305 
+13:28:07.305 2 vulnerabilities (1 moderate, 1 high)
+13:28:07.306 
+13:28:07.306 To address issues that do not require attention, run:
+13:28:07.306   npm audit fix
+13:28:07.307 
+13:28:07.307 To address all issues, run:
+13:28:07.307   npm audit fix --force
+13:28:07.307 
+13:28:07.308 Run `npm audit` for details.
+13:28:07.349 
+13:28:07.349 up to date, audited 1 package in 2s
+13:28:07.350 
+13:28:07.350 found 0 vulnerabilities
+13:28:07.725 
+13:28:07.725 > harmonyforge@1.0.0 build
+13:28:07.726 > cd frontend && npm run build
+13:28:07.726 
+13:28:07.829 
+13:28:07.830 > harmonyforge@1.0.0 build
+13:28:07.831 > vite build
+13:28:07.831 
+13:28:08.106 [31mfailed to load config from /vercel/path0/frontend/vite.config.ts[39m
+13:28:08.108 [31merror during build:
+13:28:08.111 Error [ERR_MODULE_NOT_FOUND]: Cannot find package '@vitejs/plugin-react-swc' imported from /vercel/path0/frontend/node_modules/.vite-temp/vite.config.ts.timestamp-1763494088101-20814a95bb824.mjs
+13:28:08.111     at Object.getPackageJSONURL (node:internal/modules/package_json_reader:314:9)
+13:28:08.111     at packageResolve (node:internal/modules/esm/resolve:767:81)
+13:28:08.111     at moduleResolve (node:internal/modules/esm/resolve:853:18)
+13:28:08.112     at defaultResolve (node:internal/modules/esm/resolve:983:11)
+13:28:08.112     at #cachedDefaultResolve (node:internal/modules/esm/loader:731:20)
+13:28:08.112     at ModuleLoader.resolve (node:internal/modules/esm/loader:708:38)
+13:28:08.112     at ModuleLoader.getModuleJobForImport (node:internal/modules/esm/loader:310:38)
+13:28:08.113     at ModuleJob._link (node:internal/modules/esm/module_job:182:49)[39m
+13:28:08.127 Error: Command "npm run build" exited with 1
+
+---
+
+_**Agent (model copilot/claude-sonnet-4.5)**_
+
+I'll analyze the Vercel build failure and make the repository production-ready by fixing the missing dependency and organizing the project structure. I see the issue - `@vitejs/plugin-react-swc` is in devDependencies but Vercel needs it during the build. Let me check the vite.config.ts to see what's being used. The issue is that `npm install` in the root `package.json` only installs frontend dependencies, but it doesn't install the devDependencies which include `@vitejs/plugin-react-swc`. Let me fix the frontend `package.json` and create proper production configuration. 
+```
+
+```
+Now let me create a vercel.json configuration file to properly configure the build settings: Now let me create environment example files: Now let me check and update the .gitignore to ensure environment files are properly ignored: Good, the .gitignore is already properly configured. Now let me update the root `package.json` to have better production scripts: 
+```
+
+```
+Now let me create a DEPLOYMENT.md guide: Now let me update the copilot instructions to mention deployment: 
+```
+
+```
+Now let me test the build locally to verify it works: 
+
+---
+
+_**User (2025-11-18 19:41Z)**_
+
+push repo
+
+---
+
+_**Agent (model copilot/claude-sonnet-4.5)**_
+
 
 
 ---
