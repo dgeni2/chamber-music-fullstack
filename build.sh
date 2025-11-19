@@ -10,6 +10,6 @@ cd frontend
 npm ci
 
 echo "Building frontend..."
-./node_modules/.bin/vite build
+PATH="./node_modules/.bin:$PATH" vite build
 
 echo "Build complete!"
