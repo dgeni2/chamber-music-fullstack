@@ -559,36 +559,109 @@ export default function ResultsScreen({
     console.log('Sharing project:', projectName);
   };
 
+  const [isExportDialogOpen, setIsExportDialogOpen] = useState(false);
+
   const handleExportProject = () => {
-    console.log('Exporting project:', projectName);
-    
-    // Export harmony-only version if available
+    setIsExportDialogOpen(true);
+  };
+
+  const downloadFile = (content: string, filename: string) => {
+    const blob = new Blob([content], { type: 'application/xml' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  };
+
+  const extractInstrumentPart = (musicXML: string, instrumentName: string, partIndex: number): string => {
+    try {
+      const parser = new DOMParser();
+      const xmlDoc = parser.parseFromString(musicXML, 'text/xml');
+      
+      // Get all parts
+      const parts = xmlDoc.querySelectorAll('part');
+      const scoreParts = xmlDoc.querySelectorAll('score-part');
+      
+      if (parts.length === 0 || scoreParts.length === 0) {
+        console.error('No parts found in MusicXML');
+        return musicXML;
+      }
+
+      // Create new document with single part
+      const newDoc = parser.parseFromString('<score-partwise version="3.1"></score-partwise>', 'text/xml');
+      const scorePartwise = newDoc.documentElement;
+
+      // Add XML declaration and DOCTYPE
+      const xmlDeclaration = '<?xml version="1.0" encoding="UTF-8"?>\n<!DOCTYPE score-partwise PUBLIC "-//Recordare//DTD MusicXML 3.1 Partwise//EN" "http://www.musicxml.org/dtds/partwise.dtd">\n';
+      
+      // Create part-list with single instrument
+      const partList = newDoc.createElement('part-list');
+      if (scoreParts[partIndex]) {
+        const scorePart = scoreParts[partIndex].cloneNode(true);
+        partList.appendChild(scorePart);
+      }
+      scorePartwise.appendChild(partList);
+
+      // Add the specific part
+      if (parts[partIndex]) {
+        const part = parts[partIndex].cloneNode(true);
+        scorePartwise.appendChild(part);
+      }
+
+      const serializer = new XMLSerializer();
+      const xmlString = serializer.serializeToString(newDoc);
+      
+      return xmlDeclaration + xmlString;
+    } catch (error) {
+      console.error('Error extracting instrument part:', error);
+      return musicXML;
+    }
+  };
+
+  const handleExportHarmonyOnly = () => {
     if (data.harmonyOnly) {
-      const blob = new Blob([data.harmonyOnly.content], { type: 'application/xml' });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = data.harmonyOnly.filename || 'harmony.musicxml';
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      URL.revokeObjectURL(url);
+      downloadFile(
+        data.harmonyOnly.content,
+        data.harmonyOnly.filename || `${projectName}_harmony.musicxml`
+      );
     }
-    
-    // Export combined version if available
+    setIsExportDialogOpen(false);
+  };
+
+  const handleExportFullScore = () => {
     if (data.combined) {
-      setTimeout(() => {
-        const blob = new Blob([data.combined!.content], { type: 'application/xml' });
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = data.combined!.filename || 'combined.musicxml';
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
-        URL.revokeObjectURL(url);
-      }, 100);
+      downloadFile(
+        data.combined.content,
+        data.combined.filename || `${projectName}_full_score.musicxml`
+      );
     }
+    setIsExportDialogOpen(false);
+  };
+
+  const handleExportIndividualParts = () => {
+    const musicXML = data.harmonyOnly?.content || data.combined?.content;
+    
+    if (!musicXML) {
+      console.error('No MusicXML content available');
+      return;
+    }
+
+    // Extract and download each instrument part
+    currentInstruments.forEach((instrument, index) => {
+      const partXML = extractInstrumentPart(musicXML, instrument, index);
+      const filename = `${projectName}_${instrument.replace(/\s+/g, '_')}.musicxml`;
+      
+      // Stagger downloads to prevent browser blocking
+      setTimeout(() => {
+        downloadFile(partXML, filename);
+      }, index * 200);
+    });
+
+    setIsExportDialogOpen(false);
   };
 
   // Edit tag handlers
@@ -741,6 +814,96 @@ export default function ResultsScreen({
               className="w-full sm:w-auto h-12 bg-gradient-to-r from-[#201315] to-[#e76d57] hover:opacity-90"
             >
               Save & Refresh
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Export Dialog */}
+      <Dialog open={isExportDialogOpen} onOpenChange={setIsExportDialogOpen}>
+        <DialogContent className="bg-white sm:max-w-[500px]">
+          <DialogHeader>
+            <DialogTitle className="font-['Figtree:Bold',_sans-serif] text-[22px] sm:text-[26px] text-[#201315] flex items-center gap-2">
+              <Download size={24} className="text-[#e76d57]" />
+              Export Options
+            </DialogTitle>
+            <DialogDescription className="font-['SF_Pro_Rounded:Regular',_sans-serif] text-[#6B6563]">
+              Choose how you want to export your harmonized music.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="grid gap-3 py-4">
+            {/* Full Score Option */}
+            <button
+              onClick={handleExportFullScore}
+              disabled={!data.combined}
+              className="group flex flex-col gap-2 p-4 border-2 border-[#e5ddd5] rounded-xl hover:border-[#e76d57] hover:bg-[#e76d57]/5 transition-all disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:border-[#e5ddd5] disabled:hover:bg-transparent text-left"
+            >
+              <div className="flex items-center gap-3">
+                <div className="flex items-center justify-center w-10 h-10 rounded-full bg-gradient-to-br from-[#201315] to-[#e76d57] text-white">
+                  <Music2 size={20} />
+                </div>
+                <div className="flex-1">
+                  <h3 className="font-['Figtree:SemiBold',_sans-serif] text-[16px] text-[#201315]">
+                    Full Score (Melody + Harmonies)
+                  </h3>
+                  <p className="font-['SF_Pro_Rounded:Regular',_sans-serif] text-[13px] text-[#6B6563]">
+                    Export complete score with original melody and all harmony parts
+                  </p>
+                </div>
+              </div>
+            </button>
+
+            {/* Harmony Only Option */}
+            <button
+              onClick={handleExportHarmonyOnly}
+              disabled={!data.harmonyOnly}
+              className="group flex flex-col gap-2 p-4 border-2 border-[#e5ddd5] rounded-xl hover:border-[#e76d57] hover:bg-[#e76d57]/5 transition-all disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:border-[#e5ddd5] disabled:hover:bg-transparent text-left"
+            >
+              <div className="flex items-center gap-3">
+                <div className="flex items-center justify-center w-10 h-10 rounded-full bg-gradient-to-br from-[#e76d57] to-[#201315] text-white">
+                  <Sparkles size={20} />
+                </div>
+                <div className="flex-1">
+                  <h3 className="font-['Figtree:SemiBold',_sans-serif] text-[16px] text-[#201315]">
+                    Harmony Parts Only
+                  </h3>
+                  <p className="font-['SF_Pro_Rounded:Regular',_sans-serif] text-[13px] text-[#6B6563]">
+                    Export just the harmony parts (without original melody)
+                  </p>
+                </div>
+              </div>
+            </button>
+
+            {/* Individual Parts Option */}
+            <button
+              onClick={handleExportIndividualParts}
+              disabled={currentInstruments.length === 0}
+              className="group flex flex-col gap-2 p-4 border-2 border-[#e5ddd5] rounded-xl hover:border-[#e76d57] hover:bg-[#e76d57]/5 transition-all disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:border-[#e5ddd5] disabled:hover:bg-transparent text-left"
+            >
+              <div className="flex items-center gap-3">
+                <div className="flex items-center justify-center w-10 h-10 rounded-full bg-[#e5ddd5] group-hover:bg-[#e76d57] transition-colors">
+                  <Download size={20} className="text-[#201315] group-hover:text-white transition-colors" />
+                </div>
+                <div className="flex-1">
+                  <h3 className="font-['Figtree:SemiBold',_sans-serif] text-[16px] text-[#201315]">
+                    Individual Parts ({currentInstruments.length})
+                  </h3>
+                  <p className="font-['SF_Pro_Rounded:Regular',_sans-serif] text-[13px] text-[#6B6563]">
+                    Export separate files for each instrument: {currentInstruments.join(', ')}
+                  </p>
+                </div>
+              </div>
+            </button>
+          </div>
+          
+          <DialogFooter>
+            <Button
+              onClick={() => setIsExportDialogOpen(false)}
+              variant="outline"
+              className="w-full sm:w-auto h-11 border-2"
+            >
+              Cancel
             </Button>
           </DialogFooter>
         </DialogContent>
