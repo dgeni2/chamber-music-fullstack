@@ -5,11 +5,12 @@
 
 set -e
 
-echo "Installing frontend dependencies..."
 cd frontend
+
+echo "Installing frontend dependencies..."
 npm ci
 
 echo "Building frontend..."
-node node_modules/vite/bin/vite.js build
+npm run build
 
 echo "Build complete!"
