@@ -10,7 +10,7 @@ cd frontend
 npm ci
 
 echo "Building frontend..."
-# Use the vite binary directly from node_modules
-./node_modules/.bin/vite build
+# Use node to execute the vite CLI entry point
+node ./node_modules/vite/bin/vite.js build
 
 echo "Build complete!"
