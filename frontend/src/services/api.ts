@@ -61,14 +61,32 @@ export class ApiService {
         // Don't set Content-Type header - let browser set it with boundary for multipart/form-data
       });
 
-      const data = await response.json();
+      // Check if response is JSON before trying to parse it
+      const contentType = response.headers.get('content-type');
+      const isJson = contentType && contentType.includes('application/json');
 
       if (!response.ok) {
-        const error = data as ApiError;
-        console.error('[API] Harmonization failed:', error);
-        throw new Error(error.details || error.error || `Server error: ${response.status}`);
+        if (isJson) {
+          const error = await response.json() as ApiError;
+          console.error('[API] Harmonization failed:', error);
+          throw new Error(error.details || error.error || `Server error: ${response.status}`);
+        } else {
+          // Server returned non-JSON error (e.g., timeout, crash, etc.)
+          const textError = await response.text();
+          console.error('[API] Server error (non-JSON):', textError);
+          throw new Error(
+            `Server error: ${response.status}. ` +
+            (textError ? textError.substring(0, 200) : 'The server encountered an error while processing your request.')
+          );
+        }
       }
 
+      // Success response
+      if (!isJson) {
+        throw new Error('Server returned invalid response format (expected JSON)');
+      }
+
+      const data = await response.json();
       console.log('[API] Harmonization successful:', data.metadata);
       return data as HarmonizeResponse;
 
