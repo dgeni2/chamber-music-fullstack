@@ -3,7 +3,7 @@
  * Handles file uploads and harmonization requests
  */
 
-import { POST as nextJsHandler } from '../backend/src/adapters/nextjs-adapter.js';
+import { DOMParser } from '@xmldom/xmldom';
 
 // Vercel serverless function config
 export const config = {
@@ -53,7 +53,7 @@ export default async function handler(req, res) {
       });
     }
 
-    // Use a simpler approach for Vercel - parse the body
+    // Parse the multipart form data
     const formData = await parseMultipartForm(req);
 
     if (!formData.file) {
@@ -69,6 +69,9 @@ export default async function handler(req, res) {
         details: 'Please specify instruments as comma-separated list'
       });
     }
+
+    // Convert buffer to string
+    const xmlContent = formData.file.toString('utf-8');
 
     // Parse instruments
     const instruments = formData.instruments
@@ -90,35 +93,56 @@ export default async function handler(req, res) {
       });
     }
 
+    // Validate XML content
+    if (!xmlContent || xmlContent.trim().length === 0) {
+      return res.status(400).json({
+        error: 'File is empty',
+        details: 'The uploaded file contains no data'
+      });
+    }
+
+    if (!xmlContent.includes("<score-partwise") && !xmlContent.includes("<score-timewise")) {
+      return res.status(400).json({
+        error: 'Invalid MusicXML format',
+        details: 'File must be a valid MusicXML document'
+      });
+    }
+
     console.log(`[Harmonize] Processing file: ${formData.filename}`);
     console.log(`[Harmonize] Instruments: ${instruments.join(', ')}`);
     console.log(`[Harmonize] File size: ${(formData.file.length / 1024).toFixed(2)} KB`);
 
-    // Create a mock Next.js request compatible with the handler
-    const mockNextRequest = {
+    // Import and call harmonization directly
+    const { POST: harmonizeHandler } = await import('../backend/src/adapters/nextjs-adapter.js');
+    
+    // Create a minimal request object that works with the handler
+    const mockRequest = {
       formData: async () => {
-        const fd = new FormData();
-        
-        // Create File object from buffer
-        const blob = new Blob([formData.file], { type: 'application/xml' });
-        const file = new File([blob], formData.filename, { type: 'application/xml' });
-        
-        fd.append('file', file);
-        fd.append('instruments', formData.instruments);
-        
-        return fd;
+        return {
+          get: (key) => {
+            if (key === 'file') {
+              return {
+                name: formData.filename,
+                text: async () => xmlContent
+              };
+            } else if (key === 'instruments') {
+              return formData.instruments;
+            }
+            return null;
+          }
+        };
       }
     };
 
     // Call the harmonization handler
-    const nextResponse = await nextJsHandler(mockNextRequest);
-
+    const response = await harmonizeHandler(mockRequest);
+    
     // Extract response data
-    const responseData = await nextResponse.json();
+    const responseData = await response.json();
 
     // Check if there was an error
-    if (!nextResponse.ok) {
-      return res.status(nextResponse.status).json(responseData);
+    if (!response.ok) {
+      return res.status(response.status).json(responseData);
     }
 
     // Add metadata
