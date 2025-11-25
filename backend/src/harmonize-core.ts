@@ -47,6 +47,34 @@ function querySelectorAll(element: Document | Element, tagName: string): Element
 const MAJOR_SCALE = [0, 2, 4, 5, 7, 9, 11]
 const MINOR_SCALE = [0, 2, 3, 5, 7, 8, 10]
 
+// SATB Voice Ranges (MIDI pitches)
+const SATB_RANGES = {
+  soprano: { min: 60, max: 84 }, // C4 to C6
+  alto: { min: 55, max: 76 },     // G3 to E5
+  tenor: { min: 48, max: 67 },    // C3 to G4
+  bass: { min: 40, max: 60 },     // E2 to C4
+}
+
+// Harmonic Function Flowchart: Tonic -> Tonic Prolongation -> Predominant -> Dominant -> Tonic
+const HARMONIC_FUNCTIONS: Record<string, "tonic" | "predominant" | "dominant" | "tonicProlongation"> = {
+  "I": "tonic",
+  "I6": "tonicProlongation",
+  "I64": "tonicProlongation",
+  "iii": "tonicProlongation",
+  "vi": "tonicProlongation",
+  "ii": "predominant",
+  "ii6": "predominant",
+  "ii7": "predominant",
+  "IV": "predominant",
+  "iv": "predominant", // Borrowed
+  "VI": "predominant", // Borrowed
+  "V": "dominant",
+  "V6": "dominant",
+  "V7": "dominant",
+  "vii°": "dominant",
+  "vii°7": "dominant",
+}
+
 interface Note {
   pitch: number
   duration: number
@@ -54,10 +82,15 @@ interface Note {
 }
 
 interface Chord {
-  root: number // MIDI pitch
-  quality: "major" | "minor" | "diminished" | "augmented"
-  inversion: 0 | 1 | 2 // 0 = root position, 1 = first inversion, 2 = second inversion
+  root: number // MIDI pitch class (0-11)
+  quality: "major" | "minor" | "diminished" | "augmented" | "dominant7" | "major7" | "minor7" | "halfDim7" | "dim7"
+  inversion: 0 | 1 | 2 | 3 // 0 = root, 1 = first, 2 = second, 3 = third (for 7th chords)
   voices: number[] // MIDI pitches for each voice [soprano, alto, tenor, bass]
+  romanNumeral?: string // e.g., "I", "V/V", "iv"
+  function?: "tonic" | "predominant" | "dominant" | "tonicProlongation"
+  isSecondaryDominant?: boolean
+  isBorrowed?: boolean
+  isIncomplete?: boolean // For chords missing the fifth
 }
 
 interface VoiceLeadingContext {
@@ -66,6 +99,13 @@ interface VoiceLeadingContext {
   measurePosition: number
   phrasePosition: number
   instrumentVariation: number
+  previousVoices?: number[] // Previous voice pitches for NCT detection
+}
+
+interface NCTInfo {
+  type: "passing" | "neighbor" | "suspension" | "appoggiatura" | "escape" | "anticipation" | null
+  pitch: number
+  resolvedTo?: number
 }
 
 interface InstrumentConfig {
@@ -555,6 +595,7 @@ function generateHarmonicProgressionPolyphonic(
     measurePosition: 0,
     phrasePosition: 0,
     instrumentVariation: enableVariation ? rng.next() : 0,
+    previousVoices: undefined,
   }
 
   for (let i = 0; i < maxLength; i++) {
@@ -574,15 +615,20 @@ function generateHarmonicProgressionPolyphonic(
         quality: "major",
         inversion: 0,
         voices: [-1, -1, -1, -1],
+        romanNumeral: "",
       })
       context.measurePosition = (context.measurePosition + 1) % 4
       context.phrasePosition++
+      context.previousVoices = undefined
       continue
     }
 
+    // Sort notes from lowest to highest for proper bass identification
+    const sortedNotes = [...simultaneousNotes].sort((a, b) => a - b)
+
     // Analyze the vertical harmony (all simultaneous notes)
     const chord = analyzeVerticalHarmony(
-      simultaneousNotes,
+      sortedNotes,
       scalePitches,
       root,
       scale,
@@ -594,7 +640,8 @@ function generateHarmonicProgressionPolyphonic(
 
     chords.push(chord)
     context.previousChord = chord
-    context.previousMelody = simultaneousNotes[0] // Use highest voice as reference
+    context.previousMelody = sortedNotes[sortedNotes.length - 1] // Use highest voice as reference
+    context.previousVoices = chord.voices // Store for NCT detection
     context.measurePosition = (context.measurePosition + 1) % 4
     context.phrasePosition++
   }
@@ -614,36 +661,137 @@ function analyzeVerticalHarmony(
 ): Chord {
   // Convert all notes to pitch classes
   const pitchClasses = simultaneousNotes.map((n) => n % 12)
+  const sortedNotes = [...simultaneousNotes].sort((a, b) => a - b)
+  const bassNote = sortedNotes[0] % 12
+
+  // Detect NCTs (Non-Chord Tones) - check previous notes in each voice
+  const nctInfo: NCTInfo[] = []
+  if (context.previousVoices && allMelodicLines.length > 0) {
+    for (let i = 0; i < simultaneousNotes.length; i++) {
+      const currentPitch = simultaneousNotes[i]
+      const currentPC = currentPitch % 12
+
+      // Check if this note was in the previous chord (suspension candidate)
+      if (context.previousVoices.includes(currentPitch)) {
+        // Check if it resolves down by step
+        const nextNote = allMelodicLines[i]?.[currentIndex + 1]
+        if (nextNote && nextNote.pitch !== -1) {
+          const resolution = nextNote.pitch % 12
+          const interval = (currentPC - resolution + 12) % 12
+          if (interval === 1 || interval === 2) {
+            // Suspension resolving down
+            nctInfo.push({ type: "suspension", pitch: currentPitch, resolvedTo: nextNote.pitch })
+          }
+        }
+      }
+    }
+  }
 
   // Find the most likely chord root by analyzing the pitch classes
-  const chordCandidates: Array<{ root: number; quality: "major" | "minor" | "diminished" | "augmented"; score: number }> = []
+  const chordCandidates: Array<{
+    root: number
+    quality: Chord["quality"]
+    score: number
+    scaleDegree: number
+    isSeventh: boolean
+  }> = []
 
-  // Try each scale degree as a potential root
+  // Try each scale degree as a potential root, and also check for secondary dominants
   for (let degree = 0; degree < 7; degree++) {
     const potentialRoot = (keyRoot + scale[degree]) % 12
-    const quality = getChordQuality(degree, scale === MAJOR_SCALE)
 
-    // Calculate chord tones for this candidate
-    const third = quality === "major" ? 4 : 3
-    const fifth = quality === "diminished" ? 6 : 7
+    // Detect chord quality including 7th chords
+    const { quality, isSeventh } = detectChordQuality(pitchClasses, potentialRoot, scale === MAJOR_SCALE)
+
+    // Calculate chord tones
+    const third = quality === "major" || quality === "major7" || quality === "dominant7" ? 4 : 3
+    const fifth = quality === "diminished" || quality === "halfDim7" || quality === "dim7" ? 6 : quality === "augmented" ? 8 : 7
+    const seventh = quality === "major7" ? 11 : quality.includes("7") ? 10 : null
+
     const chordTones = new Set([potentialRoot, (potentialRoot + third) % 12, (potentialRoot + fifth) % 12])
+    if (seventh !== null) {
+      chordTones.add((potentialRoot + seventh) % 12)
+    }
 
     // Score based on how many input notes match chord tones
     let score = 0
+    let nctCount = 0
+
     for (const pc of pitchClasses) {
       if (chordTones.has(pc)) {
-        score += 2 // Strong match
+        score += 3 // Strong match for chord tone
       } else if (scalePitches.includes(pc)) {
-        score += 0.5 // Passing tone or suspension
+        // Check if it's a known NCT
+        const isNCT = nctInfo.some((nct) => nct.pitch % 12 === pc)
+        if (isNCT) {
+          score += 1.5 // NCT is acceptable, less penalty
+          nctCount++
+        } else {
+          score += 0.5 // Passing tone or other NCT candidate
+        }
+      } else {
+        score -= 1 // Chromatic tone not in scale
       }
     }
 
     // Bonus for root in bass
-    if (pitchClasses[pitchClasses.length - 1] === potentialRoot) {
-      score += 1
+    if (bassNote === potentialRoot) {
+      score += 2
     }
 
-    chordCandidates.push({ root: potentialRoot, quality, score })
+    // Bonus for proper chord structure (has third and fifth, or third and seventh for 7th chords)
+    const hasThird = pitchClasses.includes((potentialRoot + third) % 12)
+    const hasFifth = pitchClasses.includes((potentialRoot + fifth) % 12)
+    const hasSeventhTone = seventh !== null && pitchClasses.includes((potentialRoot + seventh) % 12)
+
+    if (isSeventh) {
+      if (hasThird && hasSeventhTone) score += 2 // Complete 7th chord structure
+      if (!hasFifth) score += 1 // Incomplete 7th chord (missing 5th) is acceptable
+    } else {
+      if (hasThird && hasFifth) score += 2 // Complete triad
+    }
+
+    // Score based on harmonic function
+    const tempRomanNumeral = getRomanNumeral(potentialRoot, quality, degree, scale === MAJOR_SCALE, 0)
+    const tempChord: Chord = {
+      root: potentialRoot,
+      quality,
+      inversion: 0,
+      voices: [],
+      romanNumeral: tempRomanNumeral,
+    }
+    tempChord.function = HARMONIC_FUNCTIONS[tempRomanNumeral] || "tonic"
+    const functionScore = scoreHarmonicFunction(tempChord, context.previousChord, scale === MAJOR_SCALE)
+    score += functionScore * 0.3 // Weight function score
+
+    chordCandidates.push({ root: potentialRoot, quality, score, scaleDegree: degree, isSeventh })
+  }
+
+  // Also check for secondary dominants
+  for (let targetDegree = 0; targetDegree < 7; targetDegree++) {
+    const targetRoot = (keyRoot + scale[targetDegree]) % 12
+    const dominantOfTarget = (targetRoot + 7) % 12
+
+    if (pitchClasses.includes(dominantOfTarget)) {
+      const { quality, isSeventh } = detectChordQuality(pitchClasses, dominantOfTarget, scale === MAJOR_SCALE)
+      if (quality === "dominant7" || quality === "major") {
+        let score = 0
+        for (const pc of pitchClasses) {
+          if (pc === dominantOfTarget || pc === (dominantOfTarget + 4) % 12 || pc === (dominantOfTarget + 7) % 12) {
+            score += 3
+          }
+        }
+        if (bassNote === dominantOfTarget) score += 2
+
+        chordCandidates.push({
+          root: dominantOfTarget,
+          quality: quality === "major" ? "dominant7" : quality,
+          score: score + 10, // Bonus for secondary dominant
+          scaleDegree: -1, // Special marker
+          isSeventh: isSeventh,
+        })
+      }
+    }
   }
 
   // Sort by score and select best candidate
@@ -651,19 +799,26 @@ function analyzeVerticalHarmony(
   const bestChord = chordCandidates[0]
 
   // Determine inversion based on bass note
-  const bassNote = simultaneousNotes[simultaneousNotes.length - 1] % 12
-  const chordThird = (bestChord.root + (bestChord.quality === "major" ? 4 : 3)) % 12
-  const chordFifth = (bestChord.root + (bestChord.quality === "diminished" ? 6 : 7)) % 12
+  const chordThird = (bestChord.root + (bestChord.quality === "major" || bestChord.quality === "major7" || bestChord.quality === "dominant7" ? 4 : 3)) % 12
+  const chordFifth = (bestChord.root + (bestChord.quality === "diminished" || bestChord.quality === "halfDim7" || bestChord.quality === "dim7" ? 6 : bestChord.quality === "augmented" ? 8 : 7)) % 12
+  const chordSeventh = bestChord.isSeventh
+    ? (bestChord.root + (bestChord.quality === "major7" ? 11 : 10)) % 12
+    : null
 
-  let inversion: 0 | 1 | 2 = 0
+  let inversion: 0 | 1 | 2 | 3 = 0
   if (bassNote === chordThird) {
     inversion = 1
   } else if (bassNote === chordFifth) {
     inversion = 2
+  } else if (chordSeventh !== null && bassNote === chordSeventh) {
+    inversion = 3
   }
 
+  // Check for incomplete chord (missing fifth, common in V7 -> I)
+  const isIncomplete = !pitchClasses.includes(chordFifth) && bestChord.isSeventh
+
   // Use the highest input note as the soprano (melody)
-  const sopranoNote = simultaneousNotes[0]
+  const sopranoNote = simultaneousNotes[simultaneousNotes.length - 1]
 
   // Voice the chord considering the polyphonic context
   const voices = voiceChordPolyphonic(
@@ -674,6 +829,29 @@ function analyzeVerticalHarmony(
     inversion,
     context,
     simultaneousNotes,
+    bestChord.isSeventh,
+    chordSeventh,
+  )
+
+  const romanNumeral = getRomanNumeral(
+    bestChord.root,
+    bestChord.quality,
+    bestChord.scaleDegree >= 0 ? bestChord.scaleDegree : 0,
+    scale === MAJOR_SCALE,
+    inversion,
+  )
+
+  const nextChord = allMelodicLines[0]?.[currentIndex + 1] ? null : null // Will be set later
+  const secondaryInfo = isSecondaryDominant(
+    {
+      root: bestChord.root,
+      quality: bestChord.quality,
+      inversion,
+      voices,
+    },
+    keyRoot,
+    scale,
+    nextChord,
   )
 
   return {
@@ -681,6 +859,21 @@ function analyzeVerticalHarmony(
     quality: bestChord.quality,
     inversion,
     voices,
+    romanNumeral,
+    function: HARMONIC_FUNCTIONS[romanNumeral] || "tonic",
+    isSecondaryDominant: secondaryInfo.isSecondary,
+    isBorrowed: isBorrowedChord(
+      {
+        root: bestChord.root,
+        quality: bestChord.quality,
+        inversion,
+        voices,
+      },
+      keyRoot,
+      scale,
+      scale === MAJOR_SCALE,
+    ),
+    isIncomplete,
   }
 }
 
@@ -689,48 +882,78 @@ function voiceChordPolyphonic(
   chordRoot: number,
   chordThird: number,
   chordFifth: number,
-  inversion: 0 | 1 | 2,
+  inversion: 0 | 1 | 2 | 3,
   context: VoiceLeadingContext,
   inputNotes: number[],
+  isSeventh = false,
+  chordSeventh: number | null = null,
 ): number[] {
   const soprano = melodyPitch
   const sopranoOctave = Math.floor(soprano / 12)
 
-  const altoMin = 55
-  const altoMax = 76
-  const tenorMin = 48
-  const tenorMax = 67
-  const bassMin = 40
-  const bassMax = 60
+  // Strict SATB ranges
+  const altoMin = SATB_RANGES.alto.min
+  const altoMax = SATB_RANGES.alto.max
+  const tenorMin = SATB_RANGES.tenor.min
+  const tenorMax = SATB_RANGES.tenor.max
+  const bassMin = SATB_RANGES.bass.min
+  const bassMax = SATB_RANGES.bass.max
 
   let altoTone: number, tenorTone: number, bassTone: number
 
   // Try to avoid doubling notes that are already in the input
   const inputPitchClasses = new Set(inputNotes.map((n) => n % 12))
   const chordTones = [chordRoot, chordThird, chordFifth]
+  if (chordSeventh !== null) chordTones.push(chordSeventh)
 
-  // Prefer chord tones not already present in input
-  const availableTones = chordTones.filter((tone) => !inputPitchClasses.has(tone))
-  const tonesToUse = availableTones.length > 0 ? availableTones : chordTones
+  // Determine doubling based on inversion and chord type
+  const doublingStrategy = getDoublingStrategy(inversion, chordRoot, chordThird, chordFifth, isSeventh, chordSeventh)
 
+  // Voice the chord based on inversion
   if (inversion === 0) {
+    // Root position: double the root
     bassTone = findClosestPitch(chordRoot, sopranoOctave - 2, bassMin, bassMax)
-    altoTone = findClosestPitch(tonesToUse[0] || chordThird, sopranoOctave - 1, altoMin, altoMax)
-    tenorTone = findClosestPitch(tonesToUse[1] || chordFifth, sopranoOctave - 1, tenorMin, tenorMax)
+    const availableForAlto = doublingStrategy.alto || chordThird
+    const availableForTenor = doublingStrategy.tenor || chordFifth
+    altoTone = findClosestPitch(availableForAlto, sopranoOctave - 1, altoMin, altoMax)
+    tenorTone = findClosestPitch(availableForTenor, sopranoOctave - 1, tenorMin, tenorMax)
   } else if (inversion === 1) {
+    // First inversion: don't double the bass (third), double root or fifth
     bassTone = findClosestPitch(chordThird, sopranoOctave - 2, bassMin, bassMax)
-    altoTone = findClosestPitch(tonesToUse[0] || chordFifth, sopranoOctave - 1, altoMin, altoMax)
-    tenorTone = findClosestPitch(tonesToUse[1] || chordRoot, sopranoOctave - 1, tenorMin, tenorMax)
-  } else {
+    const availableForAlto = doublingStrategy.alto || chordFifth
+    const availableForTenor = doublingStrategy.tenor || chordRoot
+    altoTone = findClosestPitch(availableForAlto, sopranoOctave - 1, altoMin, altoMax)
+    tenorTone = findClosestPitch(availableForTenor, sopranoOctave - 1, tenorMin, tenorMax)
+  } else if (inversion === 2) {
+    // Second inversion: double the bass (fifth)
     bassTone = findClosestPitch(chordFifth, sopranoOctave - 2, bassMin, bassMax)
-    altoTone = findClosestPitch(tonesToUse[0] || chordRoot, sopranoOctave - 1, altoMin, altoMax)
-    tenorTone = findClosestPitch(tonesToUse[1] || chordThird, sopranoOctave - 1, tenorMin, tenorMax)
+    const availableForAlto = doublingStrategy.alto || chordRoot
+    const availableForTenor = doublingStrategy.tenor || chordThird
+    altoTone = findClosestPitch(availableForAlto, sopranoOctave - 1, altoMin, altoMax)
+    tenorTone = findClosestPitch(availableForTenor, sopranoOctave - 1, tenorMin, tenorMax)
+  } else {
+    // Third inversion (7th chords): bass is the seventh
+    bassTone = findClosestPitch(chordSeventh!, sopranoOctave - 2, bassMin, bassMax)
+    altoTone = findClosestPitch(chordRoot, sopranoOctave - 1, altoMin, altoMax)
+    tenorTone = findClosestPitch(chordThird, sopranoOctave - 1, tenorMin, tenorMax)
   }
 
+  // Apply voice leading with strict SATB rules
   if (context.previousChord) {
     const prevVoices = context.previousChord.voices
 
-    altoTone = applyVoiceLeadingToVoice(altoTone, prevVoices[1], chordRoot, chordThird, chordFifth, altoMin, altoMax)
+    // Apply voice leading prioritizing: oblique > contrary/stepwise > small leaps
+    altoTone = applyVoiceLeadingToVoice(
+      altoTone,
+      prevVoices[1],
+      chordRoot,
+      chordThird,
+      chordFifth,
+      altoMin,
+      altoMax,
+      false,
+      chordSeventh,
+    )
     tenorTone = applyVoiceLeadingToVoice(
       tenorTone,
       prevVoices[2],
@@ -739,6 +962,8 @@ function voiceChordPolyphonic(
       chordFifth,
       tenorMin,
       tenorMax,
+      false,
+      chordSeventh,
     )
     bassTone = applyVoiceLeadingToVoice(
       bassTone,
@@ -749,19 +974,133 @@ function voiceChordPolyphonic(
       bassMin,
       bassMax,
       true,
+      chordSeventh,
     )
 
-    const adjustedVoices = avoidParallelMotion([soprano, altoTone, tenorTone, bassTone], prevVoices, [
-      chordRoot,
-      chordThird,
-      chordFifth,
-    ])
+    // Handle tendency tones (7th resolving down, leading tone resolving up)
+    if (isSeventh && chordSeventh !== null) {
+      // 7th of chord should resolve down by step
+      const prevBass = prevVoices[3]
+      if (prevBass !== -1 && (prevBass % 12) === chordSeventh) {
+        // Previous chord had this 7th, resolve it down
+        const resolution = (chordSeventh - 1 + 12) % 12
+        bassTone = findClosestPitch(resolution, Math.floor(bassTone / 12), bassMin, bassMax)
+      }
+    }
+
+    // Check for leading tone (7th scale degree) - should resolve up
+    const leadingTone = (chordRoot + 11) % 12 // 7th scale degree
+    if (
+      context.previousChord.root === leadingTone &&
+      (context.previousChord.quality === "dominant7" || context.previousChord.quality === "major")
+    ) {
+      // Previous was V or V7, leading tone should resolve up to tonic
+      for (let i = 0; i < prevVoices.length; i++) {
+        if (prevVoices[i] !== -1 && (prevVoices[i] % 12) === leadingTone) {
+          // This voice had leading tone, should resolve up
+          const resolution = chordRoot
+          if (i === 0) {
+            // Soprano - already handled by melody
+          } else if (i === 1) {
+            altoTone = findClosestPitch(resolution, Math.floor(altoTone / 12), altoMin, altoMax)
+          } else if (i === 2) {
+            tenorTone = findClosestPitch(resolution, Math.floor(tenorTone / 12), tenorMin, tenorMax)
+          }
+        }
+      }
+    }
+
+    // Check spacing (no interval > octave between adjacent voices)
+    const voices = [soprano, altoTone, tenorTone, bassTone]
+    const adjustedVoices = enforceSpacing(voices)
+
+    // Avoid parallel motion (P5, P8, direct fifths/octaves)
+    const finalVoices = avoidParallelMotion(
+      adjustedVoices,
+      prevVoices,
+      [chordRoot, chordThird, chordFifth, chordSeventh].filter((t) => t !== null) as number[],
+    )
+
+    altoTone = finalVoices[1]
+    tenorTone = finalVoices[2]
+    bassTone = finalVoices[3]
+  } else {
+    // First chord - just check spacing
+    const voices = [soprano, altoTone, tenorTone, bassTone]
+    const adjustedVoices = enforceSpacing(voices)
     altoTone = adjustedVoices[1]
     tenorTone = adjustedVoices[2]
     bassTone = adjustedVoices[3]
   }
 
   return [soprano, altoTone, tenorTone, bassTone]
+}
+
+// Get doubling strategy based on inversion and chord type
+function getDoublingStrategy(
+  inversion: number,
+  root: number,
+  third: number,
+  fifth: number,
+  isSeventh: boolean,
+  seventh: number | null,
+): { alto?: number; tenor?: number } {
+  if (isSeventh && seventh !== null) {
+    // 7th chords: don't double any tone, use all four chord tones
+    return {}
+  }
+
+  if (inversion === 0) {
+    // Root position: double the root
+    return { alto: root, tenor: root }
+  } else if (inversion === 1) {
+    // First inversion: don't double the bass (third), double root or fifth
+    return { alto: root, tenor: fifth }
+  } else if (inversion === 2) {
+    // Second inversion: double the bass (fifth)
+    return { alto: fifth, tenor: fifth }
+  }
+
+  return {}
+}
+
+// Enforce SATB spacing rules (no interval > octave between adjacent voices)
+function enforceSpacing(voices: number[]): number[] {
+  const adjusted = [...voices]
+
+  // Check Soprano-Alto spacing
+  if (adjusted[0] !== -1 && adjusted[1] !== -1) {
+    const interval = adjusted[0] - adjusted[1]
+    if (interval > 12) {
+      // Too wide, move alto up an octave
+      adjusted[1] += 12
+    } else if (interval < 0) {
+      // Voices crossed, fix
+      adjusted[1] = adjusted[0] - 12
+    }
+  }
+
+  // Check Alto-Tenor spacing
+  if (adjusted[1] !== -1 && adjusted[2] !== -1) {
+    const interval = adjusted[1] - adjusted[2]
+    if (interval > 12) {
+      adjusted[2] += 12
+    } else if (interval < 0) {
+      adjusted[2] = adjusted[1] - 12
+    }
+  }
+
+  // Check Tenor-Bass spacing
+  if (adjusted[2] !== -1 && adjusted[3] !== -1) {
+    const interval = adjusted[2] - adjusted[3]
+    if (interval > 12) {
+      adjusted[3] += 12
+    } else if (interval < 0) {
+      adjusted[3] = adjusted[2] - 12
+    }
+  }
+
+  return adjusted
 }
 
 function createCombinedPolyphonicXML(
@@ -855,6 +1194,7 @@ function generateHarmonicProgression(
         quality: "major",
         inversion: 0,
         voices: [-1, -1, -1, -1], // Mark as rest
+        romanNumeral: "",
       })
       context.measurePosition = (context.measurePosition + 1) % 4
       context.phrasePosition++
@@ -1073,7 +1413,7 @@ function analyzeAndBuildChord(
   const scaleIndex = scalePitches.indexOf(melodyPitchClass)
 
   let chordScaleDegree: number
-  let chordQuality: "major" | "minor" | "diminished" | "augmented"
+  let chordQuality: Chord["quality"]
 
   if (scaleIndex === -1) {
     chordScaleDegree = 6
@@ -1106,11 +1446,15 @@ function analyzeAndBuildChord(
 
   const voices = voiceChord(melodyPitch, chordRoot, chordThird, chordFifth, inversion, context)
 
+  const romanNumeral = getRomanNumeral(chordRoot, chordQuality, chordScaleDegree, scale === MAJOR_SCALE, inversion)
+
   return {
     root: chordRoot,
     quality: chordQuality,
     inversion,
     voices,
+    romanNumeral,
+    function: HARMONIC_FUNCTIONS[romanNumeral] || "tonic",
   }
 }
 
@@ -1191,6 +1535,153 @@ function getChordQuality(scaleDegree: number, isMajorKey: boolean): "major" | "m
   }
 }
 
+// Enhanced chord quality detection for 7th chords and extended analysis
+function detectChordQuality(
+  pitchClasses: number[],
+  root: number,
+  isMajorKey: boolean,
+): { quality: Chord["quality"]; isSeventh: boolean } {
+  const third = (root + 4) % 12
+  const minorThird = (root + 3) % 12
+  const fifth = (root + 7) % 12
+  const dimFifth = (root + 6) % 12
+  const augFifth = (root + 8) % 12
+  const seventh = (root + 10) % 12
+  const majorSeventh = (root + 11) % 12
+
+  const hasThird = pitchClasses.includes(third)
+  const hasMinorThird = pitchClasses.includes(minorThird)
+  const hasFifth = pitchClasses.includes(fifth)
+  const hasDimFifth = pitchClasses.includes(dimFifth)
+  const hasAugFifth = pitchClasses.includes(augFifth)
+  const hasSeventh = pitchClasses.includes(seventh)
+  const hasMajorSeventh = pitchClasses.includes(majorSeventh)
+
+  // Detect 7th chords first
+  if (hasSeventh || hasMajorSeventh) {
+    if (hasThird && hasFifth && hasSeventh) return { quality: "dominant7", isSeventh: true }
+    if (hasThird && hasFifth && hasMajorSeventh) return { quality: "major7", isSeventh: true }
+    if (hasMinorThird && hasFifth && hasSeventh) return { quality: "minor7", isSeventh: true }
+    if (hasMinorThird && hasDimFifth && hasSeventh) return { quality: "halfDim7", isSeventh: true }
+    if (hasMinorThird && hasDimFifth && hasMajorSeventh) return { quality: "dim7", isSeventh: true }
+  }
+
+  // Triads
+  if (hasThird && hasFifth) return { quality: "major", isSeventh: false }
+  if (hasMinorThird && hasFifth) return { quality: "minor", isSeventh: false }
+  if (hasMinorThird && hasDimFifth) return { quality: "diminished", isSeventh: false }
+  if (hasThird && hasAugFifth) return { quality: "augmented", isSeventh: false }
+
+  // Default fallback
+  return { quality: "major", isSeventh: false }
+}
+
+// Get Roman numeral for a chord
+function getRomanNumeral(
+  root: number,
+  quality: Chord["quality"],
+  scaleDegree: number,
+  isMajorKey: boolean,
+  inversion: number,
+): string {
+  const romanNumerals = isMajorKey
+    ? ["I", "ii", "iii", "IV", "V", "vi", "vii°"]
+    : ["i", "ii°", "III", "iv", "v", "VI", "VII"]
+
+  let numeral = romanNumerals[scaleDegree] || "I"
+
+  // Handle 7th chords
+  if (quality.includes("7")) {
+    if (quality === "dominant7") numeral = numeral.toUpperCase() + "7"
+    else if (quality === "major7") numeral = numeral.toUpperCase() + "M7"
+    else if (quality === "minor7") numeral = numeral.toLowerCase() + "7"
+    else if (quality === "halfDim7") numeral = numeral + "ø7"
+    else if (quality === "dim7") numeral = numeral + "°7"
+  }
+
+  // Add inversion figures
+  if (inversion === 1) numeral += "6"
+  else if (inversion === 2) numeral += "64"
+  else if (inversion === 3) numeral += "43" // Third inversion for 7th chords
+
+  return numeral
+}
+
+// Detect if chord is a secondary dominant
+function isSecondaryDominant(
+  chord: Chord,
+  keyRoot: number,
+  scale: number[],
+  nextChord?: Chord | null,
+): { isSecondary: boolean; target?: number } {
+  // V7/V, V7/vi, etc.
+  if (chord.quality === "dominant7" || chord.quality === "major") {
+    // Check if this chord's root is a perfect fifth above a diatonic chord
+    for (let degree = 0; degree < 7; degree++) {
+      const targetRoot = (keyRoot + scale[degree]) % 12
+      const dominantOfTarget = (targetRoot + 7) % 12
+
+      if (chord.root === dominantOfTarget) {
+        // Verify it resolves to the target
+        if (nextChord && nextChord.root === targetRoot) {
+          return { isSecondary: true, target: targetRoot }
+        }
+        // Even without next chord, if it's clearly a secondary dominant structure
+        if (chord.quality === "dominant7") {
+          return { isSecondary: true, target: targetRoot }
+        }
+      }
+    }
+  }
+  return { isSecondary: false }
+}
+
+// Detect borrowed chords (mode mixture)
+function isBorrowedChord(chord: Chord, keyRoot: number, scale: number[], isMajorKey: boolean): boolean {
+  if (!isMajorKey) return false // Only check in major keys
+
+  // Find scale degree
+  const scaleDegree = scale.findIndex((interval) => (keyRoot + interval) % 12 === chord.root)
+  if (scaleDegree === -1) return false
+
+  // Borrowed chords in major: iv, bVI, bVII, etc.
+  const borrowedDegrees = [3, 5, 6] // iv, bVI, bVII
+  if (borrowedDegrees.includes(scaleDegree) && chord.quality === "minor") {
+    return true
+  }
+
+  return false
+}
+
+// Score chord based on harmonic function flowchart
+function scoreHarmonicFunction(
+  chord: Chord,
+  previousChord: Chord | null,
+  isMajorKey: boolean,
+): number {
+  if (!previousChord) return 50 // Neutral score for first chord
+
+  const prevFunc = previousChord.function || "tonic"
+  const currFunc = chord.function || "tonic"
+
+  // Ideal progressions
+  if (prevFunc === "tonic" && (currFunc === "tonic" || currFunc === "tonicProlongation")) return 100
+  if (prevFunc === "tonicProlongation" && (currFunc === "predominant" || currFunc === "dominant")) return 100
+  if (prevFunc === "predominant" && currFunc === "dominant") return 100
+  if (prevFunc === "dominant" && currFunc === "tonic") return 100
+
+  // Acceptable progressions
+  if (prevFunc === "tonic" && currFunc === "predominant") return 80
+  if (prevFunc === "predominant" && currFunc === "predominant") return 70
+  if (prevFunc === "dominant" && currFunc === "dominant") return 60 // V to V7, etc.
+
+  // Weak progressions
+  if (prevFunc === "dominant" && currFunc === "predominant") return 30
+  if (prevFunc === "predominant" && currFunc === "tonic") return 40
+
+  return 50 // Neutral
+}
+
 function voiceChord(
   melodyPitch: number,
   chordRoot: number,
@@ -1202,32 +1693,40 @@ function voiceChord(
   const soprano = melodyPitch
   const sopranoOctave = Math.floor(soprano / 12)
 
-  const altoMin = 55
-  const altoMax = 76
-  const tenorMin = 48
-  const tenorMax = 67
-  const bassMin = 40
-  const bassMax = 60
+  // Use strict SATB ranges
+  const altoMin = SATB_RANGES.alto.min
+  const altoMax = SATB_RANGES.alto.max
+  const tenorMin = SATB_RANGES.tenor.min
+  const tenorMax = SATB_RANGES.tenor.max
+  const bassMin = SATB_RANGES.bass.min
+  const bassMax = SATB_RANGES.bass.max
 
   let altoTone: number, tenorTone: number, bassTone: number
 
+  // Apply doubling rules
+  const doublingStrategy = getDoublingStrategy(inversion, chordRoot, chordThird, chordFifth, false, null)
+
   if (inversion === 0) {
+    // Root position: double the root
     bassTone = findClosestPitch(chordRoot, sopranoOctave - 2, bassMin, bassMax)
-    altoTone = findClosestPitch(chordThird, sopranoOctave - 1, altoMin, altoMax)
-    tenorTone = findClosestPitch(chordFifth, sopranoOctave - 1, tenorMin, tenorMax)
+    altoTone = findClosestPitch(doublingStrategy.alto || chordThird, sopranoOctave - 1, altoMin, altoMax)
+    tenorTone = findClosestPitch(doublingStrategy.tenor || chordFifth, sopranoOctave - 1, tenorMin, tenorMax)
   } else if (inversion === 1) {
+    // First inversion: don't double the bass (third)
     bassTone = findClosestPitch(chordThird, sopranoOctave - 2, bassMin, bassMax)
-    altoTone = findClosestPitch(chordFifth, sopranoOctave - 1, altoMin, altoMax)
-    tenorTone = findClosestPitch(chordRoot, sopranoOctave - 1, tenorMin, tenorMax)
+    altoTone = findClosestPitch(doublingStrategy.alto || chordFifth, sopranoOctave - 1, altoMin, altoMax)
+    tenorTone = findClosestPitch(doublingStrategy.tenor || chordRoot, sopranoOctave - 1, tenorMin, tenorMax)
   } else {
+    // Second inversion: double the bass (fifth)
     bassTone = findClosestPitch(chordFifth, sopranoOctave - 2, bassMin, bassMax)
-    altoTone = findClosestPitch(chordRoot, sopranoOctave - 1, altoMin, altoMax)
-    tenorTone = findClosestPitch(chordThird, sopranoOctave - 1, tenorMin, tenorMax)
+    altoTone = findClosestPitch(doublingStrategy.alto || chordRoot, sopranoOctave - 1, altoMin, altoMax)
+    tenorTone = findClosestPitch(doublingStrategy.tenor || chordThird, sopranoOctave - 1, tenorMin, tenorMax)
   }
 
   if (context.previousChord) {
     const prevVoices = context.previousChord.voices
 
+    // Apply voice leading with motion priority
     altoTone = applyVoiceLeadingToVoice(altoTone, prevVoices[1], chordRoot, chordThird, chordFifth, altoMin, altoMax)
     tenorTone = applyVoiceLeadingToVoice(
       tenorTone,
@@ -1249,14 +1748,22 @@ function voiceChord(
       true,
     )
 
-    const adjustedVoices = avoidParallelMotion([soprano, altoTone, tenorTone, bassTone], prevVoices, [
-      chordRoot,
-      chordThird,
-      chordFifth,
-    ])
+    // Enforce spacing
+    const voices = [soprano, altoTone, tenorTone, bassTone]
+    const spacedVoices = enforceSpacing(voices)
+
+    // Avoid parallel motion
+    const adjustedVoices = avoidParallelMotion(spacedVoices, prevVoices, [chordRoot, chordThird, chordFifth])
     altoTone = adjustedVoices[1]
     tenorTone = adjustedVoices[2]
     bassTone = adjustedVoices[3]
+  } else {
+    // First chord - just check spacing
+    const voices = [soprano, altoTone, tenorTone, bassTone]
+    const spacedVoices = enforceSpacing(voices)
+    altoTone = spacedVoices[1]
+    tenorTone = spacedVoices[2]
+    bassTone = spacedVoices[3]
   }
 
   return [soprano, altoTone, tenorTone, bassTone]
@@ -1280,23 +1787,69 @@ function applyVoiceLeadingToVoice(
   minRange: number,
   maxRange: number,
   allowLeaps = false,
+  chordSeventh: number | null = null,
 ): number {
-  const interval = Math.abs(currentPitch - previousPitch)
+  if (previousPitch === -1) {
+    // No previous pitch, just constrain to range
+    while (currentPitch < minRange) currentPitch += 12
+    while (currentPitch > maxRange) currentPitch -= 12
+    return currentPitch
+  }
 
+  const interval = Math.abs(currentPitch - previousPitch)
+  const direction = currentPitch > previousPitch ? 1 : -1
+  const currentPC = currentPitch % 12
+  const previousPC = previousPitch % 12
+
+  // Priority 1: Oblique motion (common tone retention) - best
+  if (currentPC === previousPC) {
+    // Same pitch class - keep same or move to adjacent octave if needed
+    while (currentPitch < minRange) currentPitch += 12
+    while (currentPitch > maxRange) currentPitch -= 12
+    return currentPitch
+  }
+
+  // Priority 2: Stepwise motion (2nd) - very good
+  const stepwiseInterval = Math.abs(currentPC - previousPC)
+  if (stepwiseInterval === 1 || stepwiseInterval === 11) {
+    // Stepwise motion - keep it
+    while (currentPitch < minRange) currentPitch += 12
+    while (currentPitch > maxRange) currentPitch -= 12
+    return currentPitch
+  }
+
+  // Priority 3: Small leaps (3rd, 4th) - acceptable
+  if (interval <= 5) {
+    while (currentPitch < minRange) currentPitch += 12
+    while (currentPitch > maxRange) currentPitch -= 12
+    return currentPitch
+  }
+
+  // Priority 4: Large leaps - try to minimize
   if (interval > (allowLeaps ? 12 : 7)) {
     const chordTones = [chordRoot, chordThird, chordFifth]
+    if (chordSeventh !== null) chordTones.push(chordSeventh)
     const previousOctave = Math.floor(previousPitch / 12)
 
     let bestPitch = currentPitch
-    let bestDistance = interval
+    let bestScore = -Infinity
 
     for (const tone of chordTones) {
       for (let octave = previousOctave - 1; octave <= previousOctave + 1; octave++) {
         const candidate = octave * 12 + tone
         if (candidate >= minRange && candidate <= maxRange) {
           const distance = Math.abs(candidate - previousPitch)
-          if (distance < bestDistance) {
-            bestDistance = distance
+          const candidatePC = candidate % 12
+
+          // Score: prefer stepwise, then small leaps, then common tones
+          let score = 0
+          if (candidatePC === previousPC) score = 100 // Common tone
+          else if (Math.abs(candidatePC - previousPC) === 1 || Math.abs(candidatePC - previousPC) === 11) score = 80 // Stepwise
+          else if (distance <= 5) score = 60 // Small leap
+          else score = 40 - distance // Large leap (penalized)
+
+          if (score > bestScore) {
+            bestScore = score
             bestPitch = candidate
           }
         }
@@ -1316,27 +1869,63 @@ function avoidParallelMotion(currentVoices: number[], previousVoices: number[], 
   const adjusted = [...currentVoices]
 
   for (let i = 0; i < currentVoices.length; i++) {
+    if (currentVoices[i] === -1 || previousVoices[i] === -1) continue
+
     for (let j = i + 1; j < currentVoices.length; j++) {
+      if (currentVoices[j] === -1 || previousVoices[j] === -1) continue
+
       const currentInterval = Math.abs(currentVoices[i] - currentVoices[j]) % 12
       const previousInterval = Math.abs(previousVoices[i] - previousVoices[j]) % 12
 
+      // Check for parallel perfect intervals (P5 or P8)
       if ((currentInterval === 7 || currentInterval === 0) && currentInterval === previousInterval) {
         const currentMotion = currentVoices[i] - previousVoices[i]
         const otherMotion = currentVoices[j] - previousVoices[j]
 
+        // Both voices moving in same direction = parallel motion
         if ((currentMotion > 0 && otherMotion > 0) || (currentMotion < 0 && otherMotion < 0)) {
           const lowerVoiceOctave = Math.floor(adjusted[j] / 12)
 
+          // Try to fix by changing the lower voice
           for (const tone of chordTones) {
             const candidate = lowerVoiceOctave * 12 + tone
             const newInterval = Math.abs(adjusted[i] - candidate) % 12
 
-            if (newInterval !== currentInterval) {
+            if (newInterval !== currentInterval && newInterval !== 7 && newInterval !== 0) {
               adjusted[j] = candidate
               console.log(
                 `[v0] Avoided parallel ${currentInterval === 7 ? "fifth" : "octave"} between voices ${i} and ${j}`,
               )
               break
+            }
+          }
+        }
+      }
+
+      // Check for direct fifths/octaves (similar motion into P5 or P8)
+      if (currentInterval === 7 || currentInterval === 0) {
+        const currentMotion = currentVoices[i] - previousVoices[i]
+        const otherMotion = currentVoices[j] - previousVoices[j]
+
+        // Both voices moving in same direction into a perfect interval
+        if ((currentMotion > 0 && otherMotion > 0) || (currentMotion < 0 && otherMotion < 0)) {
+          const prevInterval = Math.abs(previousVoices[i] - previousVoices[j]) % 12
+          if (prevInterval !== 7 && prevInterval !== 0) {
+            // Previous interval was not perfect, but we're moving into one
+            // This is a direct fifth/octave - generally avoid
+            const lowerVoiceOctave = Math.floor(adjusted[j] / 12)
+
+            for (const tone of chordTones) {
+              const candidate = lowerVoiceOctave * 12 + tone
+              const newInterval = Math.abs(adjusted[i] - candidate) % 12
+
+              if (newInterval !== 7 && newInterval !== 0) {
+                adjusted[j] = candidate
+                console.log(
+                  `[v0] Avoided direct ${currentInterval === 7 ? "fifth" : "octave"} between voices ${i} and ${j}`,
+                )
+                break
+              }
             }
           }
         }
