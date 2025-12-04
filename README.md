@@ -866,4 +866,4 @@ For issues, questions, or contributions, please refer to the repository's issue 
 
 ---
 
-*Last Updated: January 2024*
+*Last Updated: December 2025*
