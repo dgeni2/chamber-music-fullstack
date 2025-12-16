@@ -75,6 +75,45 @@ const HARMONIC_FUNCTIONS: Record<string, "tonic" | "predominant" | "dominant" | 
   "vii°7": "dominant",
 }
 
+// Genre-specific rule modifications
+const GENRE_RULES: Record<string, {
+  allowParallelThirds?: boolean
+  preferredProgressions?: string[][]
+  tensionTolerance?: number
+  nonChordToneFrequency?: number
+}> = {
+  classical: {
+    allowParallelThirds: false,
+    preferredProgressions: [["I", "IV", "V", "I"], ["I", "ii", "V", "I"]],
+    tensionTolerance: 0.3,
+    nonChordToneFrequency: 0.2,
+  },
+  jazz: {
+    allowParallelThirds: true,
+    preferredProgressions: [["I", "vi", "ii", "V"], ["I", "iii", "vi", "ii", "V"]],
+    tensionTolerance: 0.6,
+    nonChordToneFrequency: 0.4,
+  },
+  contemporary: {
+    allowParallelThirds: true,
+    preferredProgressions: [["I", "vi", "IV", "V"], ["vi", "IV", "I", "V"]],
+    tensionTolerance: 0.5,
+    nonChordToneFrequency: 0.3,
+  },
+  romantic: {
+    allowParallelThirds: false,
+    preferredProgressions: [["I", "vi", "IV", "V"], ["I", "iii", "vi", "IV"]],
+    tensionTolerance: 0.4,
+    nonChordToneFrequency: 0.3,
+  },
+  baroque: {
+    allowParallelThirds: false,
+    preferredProgressions: [["I", "V", "I"], ["I", "IV", "V", "I"]],
+    tensionTolerance: 0.2,
+    nonChordToneFrequency: 0.15,
+  },
+}
+
 interface Note {
   pitch: number
   duration: number
@@ -120,6 +159,154 @@ interface HarmonicAnalysis {
   score: number
   warnings: string[]
   suggestions: string[]
+}
+
+// New interfaces for enhanced features
+interface HarmonizationOptions {
+  tension?: number // 0-1: 0 = very consonant, 1 = very dissonant
+  emotion?: number // 0-1: 0 = sad/melancholic, 1 = happy/energetic (tonal tension/emotion parameter)
+  genre?: "classical" | "jazz" | "contemporary" | "romantic" | "baroque"
+  horizontalFlowWeight?: number // 0-1: weight for horizontal vs vertical rules
+  enableCompositionalTechniques?: boolean
+  compositionalTechniques?: CompositionalTechnique[]
+  barLevelControls?: BarLevelControl[]
+  trackLevelControls?: TrackLevelControl[]
+  generateAlternatives?: number // Number of alternative solutions to generate
+  transparencyMode?: boolean // Enable explainability
+  educationalMode?: boolean // Enable educational explanations
+  pitchClassSet?: number[] // Hard constraint: only use these pitch classes (0-11)
+  scaleConstraint?: boolean // Guarantee all notes conform to scale
+  enableInfilling?: boolean // Enable infilling workflow
+  infillingRange?: { start: number; end: number } // Range to infill (note indices)
+  enableExpressivePerformance?: boolean // Enable dynamics, phrasing, rubato
+  semanticSliders?: SemanticSliders // High-level semantic controls
+  exampleBasedSteering?: ExampleBasedSteering // Example-based generation
+  enableProbeIntervention?: boolean // Enable probe-assisted intervention
+  schenkerianAnalysis?: boolean // Enable Schenkerian analysis visualization
+  structuralHierarchy?: StructuralHierarchy // Multi-level hierarchical planning
+}
+
+interface BarLevelControl {
+  barIndex: number // 0-based
+  density?: "sparse" | "moderate" | "dense"
+  polyphony?: number // Number of simultaneous voices
+  rhythmicComplexity?: "simple" | "moderate" | "complex"
+  lockedVoices?: number[] // Voice indices to lock (0=soprano, 1=alto, 2=tenor, 3=bass)
+  articulation?: "staccato" | "legato" | "tenuto" | "marcato"
+  dynamics?: "pp" | "p" | "mp" | "mf" | "f" | "ff"
+}
+
+interface TrackLevelControl {
+  trackIndex: number // 0-based track/instrument index
+  noteDensity?: number // 0-1: density of notes
+  polyphonyRate?: number // 0-1: likelihood of multiple simultaneous notes
+  rhythmicPattern?: number[] // Array of durations for rhythmic pattern
+  articulation?: "staccato" | "legato" | "tenuto" | "marcato"
+  dynamics?: "pp" | "p" | "mp" | "mf" | "f" | "ff"
+}
+
+interface CompositionalTechnique {
+  type: "fragmentation" | "sequence" | "inversion" | "augmentation" | "diminution"
+  startIndex: number // Where to apply
+  length?: number // Length of motif to transform
+  interval?: number // For sequence: transposition interval in semitones
+  direction?: "up" | "down" // For sequence
+}
+
+interface SemanticSliders {
+  conventionalSurprising?: number // 0-1: 0 = conventional, 1 = surprising
+  happySad?: number // 0-1: 0 = sad, 1 = happy
+  simpleComplex?: number // 0-1: 0 = simple, 1 = complex
+  stableUnstable?: number // 0-1: 0 = stable, 1 = unstable
+}
+
+interface ExampleBasedSteering {
+  exampleXML?: string // Example MusicXML to learn from
+  similarity?: number // 0-1: how similar to example
+}
+
+interface StructuralHierarchy {
+  phrases?: PhraseStructure[]
+  sections?: SectionStructure[]
+  cadencePlacement?: CadencePlacement[]
+}
+
+interface PhraseStructure {
+  startIndex: number
+  endIndex: number
+  type: "antecedent" | "consequent" | "period" | "sentence"
+  cadenceType?: "authentic" | "half" | "plagal" | "deceptive"
+}
+
+interface SectionStructure {
+  startIndex: number
+  endIndex: number
+  type: "verse" | "chorus" | "bridge" | "development" | "exposition" | "recapitulation"
+}
+
+interface CadencePlacement {
+  index: number
+  type: "authentic" | "half" | "plagal" | "deceptive"
+  strength: "strong" | "moderate" | "weak"
+}
+
+interface RuleExplanation {
+  chordIndex: number
+  rule: string
+  reason: string
+  appliedTo: "chord" | "voice" | "progression"
+  voiceIndex?: number
+}
+
+interface HarmonizationResult {
+  harmonyOnlyXML: string
+  combinedXML: string
+  explanations?: RuleExplanation[]
+  alternatives?: HarmonizationResult[]
+  educationalNotes?: string[]
+  schenkerianAnalysis?: SchenkerianStructure
+  probeReadings?: ProbeReading[]
+  structuralAnalysis?: StructuralAnalysis
+}
+
+interface SchenkerianStructure {
+  foreground: Chord[] // Surface level
+  middleground: StructuralChord[] // Intermediate level
+  background: StructuralChord[] // Deep structure
+  levels: number // Number of hierarchical levels
+}
+
+interface StructuralChord {
+  function: "tonic" | "dominant" | "predominant" | "prolongation"
+  span: { start: number; end: number } // Spans multiple surface chords
+  importance: number // 0-1: importance in structure
+}
+
+interface ProbeReading {
+  concept: "syncopation" | "tonalTension" | "harmonicComplexity" | "voiceLeadingSmoothness"
+  value: number // 0-1
+  chordIndex: number
+  explanation: string
+}
+
+interface StructuralAnalysis {
+  phrases: PhraseAnalysis[]
+  cadences: CadenceAnalysis[]
+  form: string // e.g., "AABA", "Sonata", "Binary"
+}
+
+interface PhraseAnalysis {
+  startIndex: number
+  endIndex: number
+  type: string
+  harmonicFunction: string
+}
+
+interface CadenceAnalysis {
+  index: number
+  type: string
+  strength: number
+  function: string
 }
 
 const INSTRUMENT_CONFIG: Record<string, InstrumentConfig> = {
@@ -191,6 +378,62 @@ export async function POST(request: NextRequest) {
     const file = formData.get("file") as File
     const instrumentsStr = (formData.get("instruments") as string) || "Violin"
     const instruments = instrumentsStr.split(",").map((i) => i.trim())
+    
+    // Parse optional harmonization options
+    const options: HarmonizationOptions = {
+      tension: formData.get("tension") ? parseFloat(formData.get("tension") as string) : 0.3,
+      emotion: formData.get("emotion") ? parseFloat(formData.get("emotion") as string) : undefined,
+      genre: (formData.get("genre") as HarmonizationOptions["genre"]) || "classical",
+      horizontalFlowWeight: formData.get("horizontalFlowWeight") ? parseFloat(formData.get("horizontalFlowWeight") as string) : 0.5,
+      enableCompositionalTechniques: formData.get("enableCompositionalTechniques") === "true",
+      generateAlternatives: formData.get("generateAlternatives") ? parseInt(formData.get("generateAlternatives") as string) : 0,
+      transparencyMode: formData.get("transparencyMode") === "true",
+      educationalMode: formData.get("educationalMode") === "true",
+      scaleConstraint: formData.get("scaleConstraint") === "true",
+      enableExpressivePerformance: formData.get("enableExpressivePerformance") === "true",
+      enableProbeIntervention: formData.get("enableProbeIntervention") === "true",
+      schenkerianAnalysis: formData.get("schenkerianAnalysis") === "true",
+    }
+    
+    // Parse pitch class set if provided
+    const pitchClassSetStr = formData.get("pitchClassSet")
+    if (pitchClassSetStr) {
+      try {
+        options.pitchClassSet = JSON.parse(pitchClassSetStr as string) as number[]
+      } catch (e) {
+        console.warn(`[${requestId}] Failed to parse pitchClassSet:`, e)
+      }
+    }
+    
+    // Parse semantic sliders if provided
+    const semanticSlidersStr = formData.get("semanticSliders")
+    if (semanticSlidersStr) {
+      try {
+        options.semanticSliders = JSON.parse(semanticSlidersStr as string) as SemanticSliders
+      } catch (e) {
+        console.warn(`[${requestId}] Failed to parse semanticSliders:`, e)
+      }
+    }
+    
+    // Parse compositional techniques if provided
+    const compositionalTechniquesStr = formData.get("compositionalTechniques")
+    if (compositionalTechniquesStr) {
+      try {
+        options.compositionalTechniques = JSON.parse(compositionalTechniquesStr as string) as CompositionalTechnique[]
+      } catch (e) {
+        console.warn(`[${requestId}] Failed to parse compositionalTechniques:`, e)
+      }
+    }
+    
+    // Parse bar-level controls if provided
+    const barControlsStr = formData.get("barLevelControls")
+    if (barControlsStr) {
+      try {
+        options.barLevelControls = JSON.parse(barControlsStr as string) as BarLevelControl[]
+      } catch (e) {
+        console.warn(`[${requestId}] Failed to parse barLevelControls:`, e)
+      }
+    }
 
     // Validation
     if (!file) {
@@ -245,11 +488,25 @@ export async function POST(request: NextRequest) {
     }
 
     // Process harmonization
-    const { harmonyOnlyXML, combinedXML } = await harmonizeMelody(xmlContent, instruments)
+    const result = await harmonizeMelody(xmlContent, instruments, options)
+    
+    // If alternatives requested, generate them
+    if (options.generateAlternatives && options.generateAlternatives > 0) {
+      const alternatives: HarmonizationResult[] = []
+      for (let i = 0; i < options.generateAlternatives; i++) {
+        // Create variant seed for each alternative
+        const variantSeed = hashString(xmlContent + instruments.join(',') + `alt${i}`)
+        const variantRng = new SeededRandom(variantSeed)
+        const variantOptions = { ...options, tension: (options.tension || 0.3) + (variantRng.next() - 0.5) * 0.2 }
+        const altResult = await harmonizeMelody(xmlContent, instruments, variantOptions, variantRng)
+        alternatives.push(altResult)
+      }
+      result.alternatives = alternatives
+    }
 
     // Store in cache
     cache.set(cacheKey, {
-      result: { harmonyOnlyXML, combinedXML },
+      result: { harmonyOnlyXML: result.harmonyOnlyXML, combinedXML: result.combinedXML },
       timestamp: Date.now(),
     })
 
@@ -261,16 +518,47 @@ export async function POST(request: NextRequest) {
     const duration = Date.now() - startTime
     console.log(`[${requestId}] Harmonization completed successfully in ${duration}ms (cached for future requests)`)
 
-    return NextResponse.json({
+    const response: any = {
       harmonyOnly: {
-        content: harmonyOnlyXML,
+        content: result.harmonyOnlyXML,
         filename: file.name.replace(/\.(musicxml|xml)$/, "_harmony.musicxml"),
       },
       combined: {
-        content: combinedXML,
+        content: result.combinedXML,
         filename: file.name.replace(/\.(musicxml|xml)$/, "_combined.musicxml"),
       },
-    })
+    }
+    
+    if (result.explanations && result.explanations.length > 0) {
+      response.explanations = result.explanations
+    }
+    
+    if (result.educationalNotes && result.educationalNotes.length > 0) {
+      response.educationalNotes = result.educationalNotes
+    }
+    
+    if (result.alternatives && result.alternatives.length > 0) {
+      response.alternatives = result.alternatives.map((alt, idx) => ({
+        harmonyOnly: {
+          content: alt.harmonyOnlyXML,
+          filename: file.name.replace(/\.(musicxml|xml)$/, `_harmony_alt${idx + 1}.musicxml`),
+        },
+        combined: {
+          content: alt.combinedXML,
+          filename: file.name.replace(/\.(musicxml|xml)$/, `_combined_alt${idx + 1}.musicxml`),
+        },
+      }))
+    }
+    
+    if (result.probeReadings && result.probeReadings.length > 0) {
+      response.probeReadings = result.probeReadings
+    }
+    
+    if (result.schenkerianAnalysis) {
+      response.schenkerianAnalysis = result.schenkerianAnalysis
+    }
+    
+    return NextResponse.json(response)
   } catch (error) {
     const duration = Date.now() - startTime
     console.error(`[${requestId}] Harmonization error after ${duration}ms:`, error)
@@ -301,10 +589,555 @@ export async function POST(request: NextRequest) {
   }
 }
 
+// ============================================================================
+// ADVANCED FEATURES: HIERARCHICAL STRUCTURAL PLANNING
+// ============================================================================
+
+function planStructuralHierarchy(
+  melodyNotes: Note[],
+  options: HarmonizationOptions,
+): StructuralHierarchy {
+  const hierarchy: StructuralHierarchy = {
+    phrases: [],
+    sections: [],
+    cadencePlacement: [],
+  }
+
+  // Auto-detect phrases if not provided
+  if (!options.structuralHierarchy?.phrases) {
+    const phraseLength = Math.floor(melodyNotes.length / 4) // Approximate phrase length
+    for (let i = 0; i < melodyNotes.length; i += phraseLength) {
+      const endIndex = Math.min(i + phraseLength - 1, melodyNotes.length - 1)
+      hierarchy.phrases?.push({
+        startIndex: i,
+        endIndex: endIndex,
+        type: (i / phraseLength) % 2 === 0 ? "antecedent" : "consequent",
+      })
+    }
+  } else {
+    hierarchy.phrases = options.structuralHierarchy.phrases
+  }
+
+  // Plan cadence placement
+  if (hierarchy.phrases) {
+    hierarchy.cadencePlacement = hierarchy.phrases.map((phrase, idx) => ({
+      index: phrase.endIndex,
+      type: idx === hierarchy.phrases!.length - 1 ? "authentic" : "half",
+      strength: idx === hierarchy.phrases!.length - 1 ? "strong" : "moderate",
+    }))
+  }
+
+  return hierarchy
+}
+
+// ============================================================================
+// ADVANCED FEATURES: COMPOSITIONAL TECHNIQUES
+// ============================================================================
+
+function applyCompositionalTechniques(
+  notes: Note[],
+  techniques: CompositionalTechnique[],
+  root: number,
+  scale: number[],
+): Note[] {
+  let transformed = [...notes]
+
+  for (const technique of techniques) {
+    const start = technique.startIndex
+    const length = technique.length || 4
+    const end = Math.min(start + length, transformed.length)
+    const motif = transformed.slice(start, end)
+
+    switch (technique.type) {
+      case "fragmentation":
+        // Use first half of motif
+        transformed = [
+          ...transformed.slice(0, start),
+          ...motif.slice(0, Math.ceil(motif.length / 2)),
+          ...transformed.slice(end),
+        ]
+        break
+
+      case "sequence":
+        // Transpose motif
+        const interval = technique.interval || 2
+        const direction = technique.direction === "down" ? -1 : 1
+        const sequenced = motif.map((note) => ({
+          ...note,
+          pitch: note.pitch === -1 ? -1 : note.pitch + direction * interval,
+        }))
+        transformed = [
+          ...transformed.slice(0, end),
+          ...sequenced,
+          ...transformed.slice(end),
+        ]
+        break
+
+      case "inversion":
+        // Invert around first note
+        if (motif.length > 0 && motif[0].pitch !== -1) {
+          const pivot = motif[0].pitch
+          const inverted = motif.map((note) => ({
+            ...note,
+            pitch: note.pitch === -1 ? -1 : pivot - (note.pitch - pivot),
+          }))
+          transformed = [
+            ...transformed.slice(0, start),
+            ...inverted,
+            ...transformed.slice(end),
+          ]
+        }
+        break
+
+      case "augmentation":
+        // Double durations
+        const augmented = motif.map((note) => ({
+          ...note,
+          duration: note.duration * 2,
+        }))
+        transformed = [
+          ...transformed.slice(0, start),
+          ...augmented,
+          ...transformed.slice(end),
+        ]
+        break
+
+      case "diminution":
+        // Halve durations
+        const diminished = motif.map((note) => ({
+          ...note,
+          duration: Math.max(0.5, note.duration / 2),
+        }))
+        transformed = [
+          ...transformed.slice(0, start),
+          ...diminished,
+          ...transformed.slice(end),
+        ]
+        break
+    }
+  }
+
+  return transformed
+}
+
+// ============================================================================
+// ADVANCED FEATURES: EMOTION/TENSION MODULATION
+// ============================================================================
+
+function modulateTonalTension(
+  chord: Chord,
+  emotion: number,
+  root: number,
+  scale: number[],
+): Chord {
+  // Emotion parameter: 0 = sad/melancholic (minor, diminished), 1 = happy/energetic (major, augmented)
+  // Tension parameter: 0 = consonant, 1 = dissonant
+
+  if (emotion < 0.3) {
+    // Sad: prefer minor, diminished
+    if (chord.quality === "major") {
+      const minorThird = (chord.root + 3) % 12
+      return {
+        ...chord,
+        quality: "minor",
+        voices: chord.voices.map((v) => {
+          if (v === -1) return -1
+          const pc = v % 12
+          if (pc === (chord.root + 4) % 12) {
+            // Major third -> minor third
+            return v - 1
+          }
+          return v
+        }),
+      }
+    }
+  } else if (emotion > 0.7) {
+    // Happy: prefer major, augmented
+    if (chord.quality === "minor") {
+      const majorThird = (chord.root + 4) % 12
+      return {
+        ...chord,
+        quality: "major",
+        voices: chord.voices.map((v) => {
+          if (v === -1) return -1
+          const pc = v % 12
+          if (pc === (chord.root + 3) % 12) {
+            // Minor third -> major third
+            return v + 1
+          }
+          return v
+        }),
+      }
+    }
+  }
+
+  return chord
+}
+
+// ============================================================================
+// ADVANCED FEATURES: PITCH-ACCURATE HARMONIC CONSTRAINTS
+// ============================================================================
+
+function enforcePitchClassConstraint(
+  chord: Chord,
+  pitchClassSet: number[],
+  scalePitches: number[],
+): Chord {
+  // Ensure all notes conform to pitch class set or scale
+  const constrainedVoices = chord.voices.map((pitch) => {
+    if (pitch === -1) return -1
+
+    const pitchClass = pitch % 12
+
+    // Check if pitch class is in allowed set
+    if (pitchClassSet.length > 0 && !pitchClassSet.includes(pitchClass)) {
+      // Find closest allowed pitch class
+      let closest = pitchClassSet[0]
+      let minDist = Math.min(
+        Math.abs(pitchClass - pitchClassSet[0]),
+        Math.abs(pitchClass - (pitchClassSet[0] + 12)),
+      )
+
+      for (const allowed of pitchClassSet) {
+        const dist = Math.min(
+          Math.abs(pitchClass - allowed),
+          Math.abs(pitchClass - (allowed + 12)),
+        )
+        if (dist < minDist) {
+          minDist = dist
+          closest = allowed
+        }
+      }
+
+      // Adjust to closest allowed pitch class
+      const octave = Math.floor(pitch / 12)
+      return octave * 12 + closest
+    }
+
+    // If using scale constraint, ensure pitch is in scale
+    if (scalePitches.length > 0 && !scalePitches.includes(pitchClass)) {
+      // Find closest scale pitch
+      let closest = scalePitches[0]
+      let minDist = Math.min(
+        Math.abs(pitchClass - scalePitches[0]),
+        Math.abs(pitchClass - (scalePitches[0] + 12)),
+      )
+
+      for (const scalePitch of scalePitches) {
+        const dist = Math.min(
+          Math.abs(pitchClass - scalePitch),
+          Math.abs(pitchClass - (scalePitch + 12)),
+        )
+        if (dist < minDist) {
+          minDist = dist
+          closest = scalePitch
+        }
+      }
+
+      const octave = Math.floor(pitch / 12)
+      return octave * 12 + closest
+    }
+
+    return pitch
+  })
+
+  return { ...chord, voices: constrainedVoices }
+}
+
+// ============================================================================
+// ADVANCED FEATURES: EXPRESSIVE PERFORMANCE MODELING
+// ============================================================================
+
+interface ExpressiveNote extends Note {
+  dynamics?: "pp" | "p" | "mp" | "mf" | "f" | "ff"
+  articulation?: "staccato" | "legato" | "tenuto" | "marcato"
+  rubato?: number // 0-1: amount of tempo variation
+}
+
+function addExpressivePerformance(
+  notes: Note[],
+  options: HarmonizationOptions,
+  barControls?: BarLevelControl[],
+): ExpressiveNote[] {
+  return notes.map((note, index) => {
+    const expressive: ExpressiveNote = { ...note }
+
+    // Find bar for this note
+    const barIndex = Math.floor(index / 4) // Approximate
+    const barControl = barControls?.find((bc) => bc.barIndex === barIndex)
+
+    // Apply dynamics
+    if (barControl?.dynamics) {
+      expressive.dynamics = barControl.dynamics
+    } else if (options.enableExpressivePerformance) {
+      // Auto-generate dynamics based on phrase position
+      const phrasePos = (index % 16) / 16 // 0-1 within phrase
+      if (phrasePos < 0.25) expressive.dynamics = "p"
+      else if (phrasePos < 0.75) expressive.dynamics = "mf"
+      else expressive.dynamics = "f"
+    }
+
+    // Apply articulation
+    if (barControl?.articulation) {
+      expressive.articulation = barControl.articulation
+    } else if (options.enableExpressivePerformance) {
+      // Default to legato for smooth voice leading
+      expressive.articulation = "legato"
+    }
+
+    // Apply rubato (tempo variation)
+    if (options.enableExpressivePerformance) {
+      const phrasePos = (index % 16) / 16
+      // Slight rubato at phrase endings
+      if (phrasePos > 0.85) {
+        expressive.rubato = 0.1 // Slight ritardando
+      }
+    }
+
+    return expressive
+  })
+}
+
+// ============================================================================
+// ADVANCED FEATURES: PROBE-ASSISTED INTERVENTION
+// ============================================================================
+
+function computeProbeReadings(
+  chords: Chord[],
+  melodyNotes: Note[],
+): ProbeReading[] {
+  const readings: ProbeReading[] = []
+
+  for (let i = 0; i < chords.length; i++) {
+    const chord = chords[i]
+    if (chord.voices[0] === -1) continue
+
+    // Syncopation Index
+    if (i > 0 && i < chords.length - 1) {
+      const prevDuration = melodyNotes[i - 1]?.duration || 1
+      const currDuration = melodyNotes[i]?.duration || 1
+      const nextDuration = melodyNotes[i + 1]?.duration || 1
+      const syncopation =
+        currDuration < prevDuration && currDuration < nextDuration ? 0.7 : 0.2
+      readings.push({
+        concept: "syncopation",
+        value: syncopation,
+        chordIndex: i,
+        explanation: `Syncopation index: ${syncopation.toFixed(2)}`,
+      })
+    }
+
+    // Tonal Tension
+    const tension = computeTonalTension(chord)
+    readings.push({
+      concept: "tonalTension",
+      value: tension,
+      chordIndex: i,
+      explanation: `Tonal tension: ${tension.toFixed(2)} (${tension > 0.6 ? "high" : tension > 0.3 ? "moderate" : "low"})`,
+    })
+
+    // Harmonic Complexity
+    const complexity = computeHarmonicComplexity(chord)
+    readings.push({
+      concept: "harmonicComplexity",
+      value: complexity,
+      chordIndex: i,
+      explanation: `Harmonic complexity: ${complexity.toFixed(2)}`,
+    })
+
+    // Voice Leading Smoothness
+    if (i > 0) {
+      const smoothness = computeVoiceLeadingSmoothness(chord, chords[i - 1])
+      readings.push({
+        concept: "voiceLeadingSmoothness",
+        value: smoothness,
+        chordIndex: i,
+        explanation: `Voice leading smoothness: ${smoothness.toFixed(2)}`,
+      })
+    }
+  }
+
+  return readings
+}
+
+function computeTonalTension(chord: Chord): number {
+  // Higher tension for: diminished, augmented, 7th chords, non-tonic functions
+  let tension = 0.3
+
+  if (chord.quality === "diminished" || chord.quality === "augmented") tension += 0.3
+  if (chord.quality.includes("7")) tension += 0.2
+  if (chord.function === "dominant") tension += 0.2
+  if (chord.function === "predominant") tension += 0.1
+  if (chord.isSecondaryDominant) tension += 0.1
+
+  return Math.min(1.0, tension)
+}
+
+function computeHarmonicComplexity(chord: Chord): number {
+  // Complexity based on chord type and extensions
+  let complexity = 0.3
+
+  if (chord.quality.includes("7")) complexity += 0.2
+  if (chord.inversion > 0) complexity += 0.1
+  if (chord.isSecondaryDominant) complexity += 0.2
+  if (chord.isBorrowed) complexity += 0.1
+
+  return Math.min(1.0, complexity)
+}
+
+function computeVoiceLeadingSmoothness(current: Chord, previous: Chord): number {
+  // Measure average voice leading interval
+  let totalInterval = 0
+  let count = 0
+
+  for (let i = 0; i < 4; i++) {
+    if (current.voices[i] !== -1 && previous.voices[i] !== -1) {
+      const interval = Math.abs(current.voices[i] - previous.voices[i])
+      totalInterval += interval
+      count++
+    }
+  }
+
+  if (count === 0) return 0.5
+
+  const avgInterval = totalInterval / count
+  // Smaller intervals = smoother = higher score
+  const smoothness = Math.max(0, 1 - avgInterval / 12)
+
+  return smoothness
+}
+
+// ============================================================================
+// ADVANCED FEATURES: SCHENKERIAN ANALYSIS
+// ============================================================================
+
+function performSchenkerianAnalysis(
+  chords: Chord[],
+  melodyNotes: Note[],
+): SchenkerianStructure {
+  // Simplified Schenkerian analysis: identify structural chords
+  const foreground: Chord[] = chords
+
+  // Middleground: reduce to essential harmonic functions
+  const middleground: StructuralChord[] = []
+  let currentFunction: "tonic" | "dominant" | "predominant" | "prolongation" | null = null
+  let startIndex = 0
+
+  for (let i = 0; i < chords.length; i++) {
+    const chord = chords[i]
+    if (chord.voices[0] === -1) continue
+
+    const func = chord.function || "tonic"
+
+    if (currentFunction === null) {
+      currentFunction = func as any
+      startIndex = i
+    } else if (func !== currentFunction && func !== "tonicProlongation") {
+      // New function starts
+      middleground.push({
+        function: currentFunction,
+        span: { start: startIndex, end: i - 1 },
+        importance: 0.7,
+      })
+      currentFunction = func as any
+      startIndex = i
+    }
+  }
+
+  // Add final function
+  if (currentFunction) {
+    middleground.push({
+      function: currentFunction,
+      span: { start: startIndex, end: chords.length - 1 },
+      importance: 0.8,
+    })
+  }
+
+  // Background: further reduction to tonic-dominant-tonic
+  const background: StructuralChord[] = []
+  const tonicChords = middleground.filter((c) => c.function === "tonic")
+  const dominantChords = middleground.filter((c) => c.function === "dominant")
+
+  if (tonicChords.length > 0) {
+    background.push({
+      function: "tonic",
+      span: { start: tonicChords[0].span.start, end: tonicChords[tonicChords.length - 1].span.end },
+      importance: 1.0,
+    })
+  }
+
+  if (dominantChords.length > 0) {
+    background.push({
+      function: "dominant",
+      span: { start: dominantChords[0].span.start, end: dominantChords[dominantChords.length - 1].span.end },
+      importance: 0.9,
+    })
+  }
+
+  return {
+    foreground,
+    middleground,
+    background,
+    levels: 3,
+  }
+}
+
+// ============================================================================
+// ADVANCED FEATURES: SEMANTIC SLIDERS
+// ============================================================================
+
+function applySemanticSliders(
+  chord: Chord,
+  sliders: SemanticSliders,
+  rng: SeededRandom,
+): Chord {
+  let modified = { ...chord }
+
+  // Conventional vs Surprising
+  if (sliders.conventionalSurprising !== undefined) {
+    if (sliders.conventionalSurprising > 0.7) {
+      // Surprising: prefer less common progressions, secondary dominants
+      if (rng.next() < 0.3) {
+        modified.isSecondaryDominant = true
+      }
+    }
+  }
+
+  // Happy vs Sad
+  if (sliders.happySad !== undefined) {
+    if (sliders.happySad < 0.3 && modified.quality === "major") {
+      modified.quality = "minor"
+    } else if (sliders.happySad > 0.7 && modified.quality === "minor") {
+      modified.quality = "major"
+    }
+  }
+
+  // Simple vs Complex
+  if (sliders.simpleComplex !== undefined) {
+    if (sliders.simpleComplex > 0.6 && modified.quality === "major") {
+      modified.quality = "dominant7"
+    }
+  }
+
+  // Stable vs Unstable
+  if (sliders.stableUnstable !== undefined) {
+    if (sliders.stableUnstable > 0.7) {
+      // Unstable: prefer diminished, augmented, 7th chords
+      if (modified.quality === "major") {
+        modified.quality = "dominant7"
+      }
+    }
+  }
+
+  return modified
+}
+
 async function harmonizeMelody(
   xmlContent: string,
   instruments: string[],
-): Promise<{ harmonyOnlyXML: string; combinedXML: string }> {
+  options: HarmonizationOptions = {},
+  providedRng?: SeededRandom,
+): Promise<HarmonizationResult> {
   const parser = new DOMParser()
   const xmlDoc = parser.parseFromString(xmlContent, "text/xml")
 
@@ -316,8 +1149,11 @@ async function harmonizeMelody(
 
   // Create deterministic seed from file content and instruments
   const seed = hashString(xmlContent + instruments.join(','))
-  const rng = new SeededRandom(seed)
+  const rng = providedRng || new SeededRandom(seed)
   console.log("[v0] Using deterministic seed:", seed)
+  
+  // Apply genre-specific rules
+  const genreRules = GENRE_RULES[options.genre || "classical"] || GENRE_RULES.classical
 
   console.log("[v0] Key signature:", { fifths: keyFifths, mode, scale: getScaleNotes(root, scale) })
   console.log("[v0] Target instruments:", instruments)
@@ -325,13 +1161,36 @@ async function harmonizeMelody(
   const isPolyphonic = detectPolyphony(xmlDoc)
   console.log("[v0] Input type:", isPolyphonic ? "Polyphonic (multiple voices)" : "Monophonic (single voice)")
 
+  const explanations: RuleExplanation[] = []
+  const educationalNotes: string[] = []
+  
+  if (options.educationalMode) {
+    educationalNotes.push(`Key: ${getKeyName(root, mode)} (${mode})`)
+    educationalNotes.push(`Scale degrees: ${getScaleNotes(root, scale).join(', ')}`)
+  }
+  
+  let result: HarmonizationResult
   if (isPolyphonic) {
     // Handle polyphonic input - generate harmonies from multiple melodic lines
-    return harmonizePolyphonic(xmlDoc, instruments, root, scale, mode, fifths, rng)
+    result = await harmonizePolyphonic(xmlDoc, instruments, root, scale, mode, fifths, rng, options, explanations, educationalNotes)
   } else {
     // Handle monophonic input - existing logic
-    return harmonizeMonophonic(xmlDoc, instruments, root, scale, mode, fifths, rng)
+    result = await harmonizeMonophonic(xmlDoc, instruments, root, scale, mode, fifths, rng, options, explanations, educationalNotes)
   }
+  
+  if (options.transparencyMode) {
+    result.explanations = explanations
+  }
+  if (options.educationalMode) {
+    result.educationalNotes = educationalNotes
+  }
+  
+  return result
+}
+
+function getKeyName(root: number, mode: string): string {
+  const noteNames = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"]
+  return `${noteNames[root]} ${mode}`
 }
 
 function detectPolyphony(xmlDoc: Document): boolean {
@@ -370,12 +1229,79 @@ async function harmonizeMonophonic(
   mode: string,
   fifths: string,
   rng: SeededRandom,
-): Promise<{ harmonyOnlyXML: string; combinedXML: string }> {
-  const melodyNotes = extractNotes(xmlDoc)
+  options: HarmonizationOptions,
+  explanations: RuleExplanation[],
+  educationalNotes: string[],
+): Promise<HarmonizationResult> {
+  let melodyNotes = extractNotes(xmlDoc)
   console.log("[v0] Found", melodyNotes.length, "melody notes")
 
-  let harmonicProgression = generateHarmonicProgression(melodyNotes, root, scale, mode, instruments.length > 1, rng)
+  // Apply compositional techniques if enabled
+  if (options.enableCompositionalTechniques && options.compositionalTechniques) {
+    melodyNotes = applyCompositionalTechniques(melodyNotes, options.compositionalTechniques, root, scale)
+    if (options.transparencyMode) {
+      explanations.push({
+        chordIndex: 0,
+        rule: "Compositional Techniques",
+        reason: `Applied ${options.compositionalTechniques.length} compositional technique(s)`,
+        appliedTo: "progression",
+      })
+    }
+  }
+
+  // Plan structural hierarchy
+  const structuralHierarchy = planStructuralHierarchy(melodyNotes, options)
+  if (options.transparencyMode && structuralHierarchy.phrases) {
+    explanations.push({
+      chordIndex: 0,
+      rule: "Structural Planning",
+      reason: `Identified ${structuralHierarchy.phrases.length} phrase(s) with planned cadences`,
+      appliedTo: "progression",
+    })
+  }
+
+  let harmonicProgression = generateHarmonicProgression(
+    melodyNotes, 
+    root, 
+    scale, 
+    mode, 
+    instruments.length > 1, 
+    rng,
+    options,
+    explanations,
+    educationalNotes
+  )
   console.log("[v0] Generated", harmonicProgression.length, "chords")
+
+  // Apply emotion/tension modulation
+  if (options.emotion !== undefined || options.tension !== undefined) {
+    harmonicProgression = harmonicProgression.map((chord) => {
+      let modified = chord
+      if (options.emotion !== undefined) {
+        modified = modulateTonalTension(modified, options.emotion, root, scale)
+      }
+      return modified
+    })
+  }
+
+  // Apply pitch-accurate constraints
+  const scalePitches = scale.map((interval) => (root + interval) % 12)
+  if (options.pitchClassSet || options.scaleConstraint) {
+    harmonicProgression = harmonicProgression.map((chord) =>
+      enforcePitchClassConstraint(
+        chord,
+        options.pitchClassSet || [],
+        options.scaleConstraint ? scalePitches : [],
+      ),
+    )
+  }
+
+  // Apply semantic sliders
+  if (options.semanticSliders) {
+    harmonicProgression = harmonicProgression.map((chord) =>
+      applySemanticSliders(chord, options.semanticSliders!, rng),
+    )
+  }
 
   const analysis = validateHarmonicProgression(harmonicProgression, melodyNotes, root, scale, mode === "major")
   console.log("[v0] Harmonic validation score:", analysis.score)
@@ -405,10 +1331,115 @@ async function harmonizeMonophonic(
     harmoniesByInstrument[instrument] = instrumentNotes
   }
 
+  // Compute probe readings if enabled
+  let probeReadings: ProbeReading[] | undefined
+  if (options.enableProbeIntervention) {
+    probeReadings = computeProbeReadings(harmonicProgression, melodyNotes)
+  }
+
+  // Perform Schenkerian analysis if enabled
+  let schenkerianAnalysis: SchenkerianStructure | undefined
+  if (options.schenkerianAnalysis) {
+    schenkerianAnalysis = performSchenkerianAnalysis(harmonicProgression, melodyNotes)
+    if (options.educationalMode) {
+      educationalNotes.push(
+        `Schenkerian Analysis: ${schenkerianAnalysis.background.length} background level(s), ${schenkerianAnalysis.middleground.length} middleground level(s)`,
+      )
+    }
+  }
+
+  // Add expressive performance if enabled
+  let expressiveNotes = melodyNotes
+  if (options.enableExpressivePerformance) {
+    expressiveNotes = addExpressivePerformance(melodyNotes, options, options.barLevelControls)
+  }
+
   const harmonyOnlyXML = createMultiInstrumentHarmonyXML(xmlDoc, harmoniesByInstrument)
   const combinedXML = createCombinedMultiInstrumentXML(xmlDoc, melodyNotes, harmoniesByInstrument)
 
-  return { harmonyOnlyXML, combinedXML }
+  const result: HarmonizationResult = {
+    harmonyOnlyXML,
+    combinedXML,
+    explanations,
+    educationalNotes,
+  }
+
+  if (probeReadings) result.probeReadings = probeReadings
+  if (schenkerianAnalysis) result.schenkerianAnalysis = schenkerianAnalysis
+
+  return result
+}
+
+// ============================================================================
+// ADVANCED FEATURES: INFILLING WORKFLOW
+// ============================================================================
+
+function performInfilling(
+  melodyNotes: Note[],
+  infillingRange: { start: number; end: number },
+  root: number,
+  scale: number[],
+  mode: string,
+  rng: SeededRandom,
+  options: HarmonizationOptions,
+  explanations: RuleExplanation[],
+): Note[] {
+  // Infilling: generate notes for a missing segment based on context before and after
+  const beforeContext = melodyNotes.slice(Math.max(0, infillingRange.start - 4), infillingRange.start)
+  const afterContext = melodyNotes.slice(infillingRange.end, Math.min(melodyNotes.length, infillingRange.end + 4))
+  
+  const infilled: Note[] = []
+  const length = infillingRange.end - infillingRange.start
+  
+  // Use anticipation: look ahead to afterContext
+  // Use context: look back to beforeContext
+  for (let i = 0; i < length; i++) {
+    const progress = i / length
+    
+    // Interpolate between before and after contexts
+    const beforeNote = beforeContext[beforeContext.length - 1]
+    const afterNote = afterContext[0]
+    
+    if (beforeNote && afterNote && beforeNote.pitch !== -1 && afterNote.pitch !== -1) {
+      // Linear interpolation between pitches
+      const interpolatedPitch = Math.round(
+        beforeNote.pitch * (1 - progress) + afterNote.pitch * progress
+      )
+      const interpolatedDuration = beforeNote.duration * (1 - progress) + afterNote.duration * progress
+      
+      infilled.push({
+        pitch: interpolatedPitch,
+        duration: interpolatedDuration,
+        offset: beforeNote.offset + beforeNote.duration + i * interpolatedDuration,
+      })
+    } else {
+      // Fallback: use scale tones
+      const scalePitches = scale.map((interval) => (root + interval) % 12)
+      const randomScaleDegree = Math.floor(rng.next() * scalePitches.length)
+      const octave = Math.floor((beforeNote?.pitch || 60) / 12)
+      infilled.push({
+        pitch: octave * 12 + scalePitches[randomScaleDegree],
+        duration: beforeNote?.duration || 1,
+        offset: (beforeNote?.offset || 0) + (beforeNote?.duration || 1) * (i + 1),
+      })
+    }
+  }
+  
+  if (options.transparencyMode) {
+    explanations.push({
+      chordIndex: infillingRange.start,
+      rule: "Infilling",
+      reason: `Generated ${length} notes using anticipation and context from measures ${infillingRange.start} to ${infillingRange.end}`,
+      appliedTo: "progression",
+    })
+  }
+  
+  // Insert infilled notes
+  return [
+    ...melodyNotes.slice(0, infillingRange.start),
+    ...infilled,
+    ...melodyNotes.slice(infillingRange.end),
+  ]
 }
 
 async function harmonizePolyphonic(
@@ -419,10 +1450,20 @@ async function harmonizePolyphonic(
   mode: string,
   fifths: string,
   rng: SeededRandom,
-): Promise<{ harmonyOnlyXML: string; combinedXML: string }> {
+  options: HarmonizationOptions,
+  explanations: RuleExplanation[],
+  educationalNotes: string[],
+): Promise<HarmonizationResult> {
   // Extract multiple melodic lines
-  const melodicLines = extractNotesPolyphonic(xmlDoc)
+  let melodicLines = extractNotesPolyphonic(xmlDoc)
   console.log("[v0] Extracted", melodicLines.length, "melodic lines with", melodicLines[0]?.length || 0, "time slices")
+  
+  // Apply infilling if requested
+  if (options.enableInfilling && options.infillingRange) {
+    melodicLines = melodicLines.map((line) =>
+      performInfilling(line, options.infillingRange!, root, scale, mode, rng, options, explanations)
+    )
+  }
 
   // Generate harmonic progression considering all voices
   let harmonicProgression = generateHarmonicProgressionPolyphonic(
@@ -432,6 +1473,9 @@ async function harmonizePolyphonic(
     mode,
     instruments.length > 1,
     rng,
+    options,
+    explanations,
+    educationalNotes,
   )
   console.log("[v0] Generated", harmonicProgression.length, "polyphonic chords")
 
@@ -491,10 +1535,67 @@ async function harmonizePolyphonic(
     harmoniesByInstrument[instrument] = instrumentNotes
   }
 
+  // Apply emotion/tension modulation
+  if (options.emotion !== undefined || options.tension !== undefined) {
+    harmonicProgression = harmonicProgression.map((chord) => {
+      let modified = chord
+      if (options.emotion !== undefined) {
+        modified = modulateTonalTension(modified, options.emotion, root, scale)
+      }
+      return modified
+    })
+  }
+
+  // Apply pitch-accurate constraints
+  const scalePitches = scale.map((interval) => (root + interval) % 12)
+  if (options.pitchClassSet || options.scaleConstraint) {
+    harmonicProgression = harmonicProgression.map((chord) =>
+      enforcePitchClassConstraint(
+        chord,
+        options.pitchClassSet || [],
+        options.scaleConstraint ? scalePitches : [],
+      ),
+    )
+  }
+
+  // Apply semantic sliders
+  if (options.semanticSliders) {
+    harmonicProgression = harmonicProgression.map((chord) =>
+      applySemanticSliders(chord, options.semanticSliders!, rng),
+    )
+  }
+
+  // Compute probe readings if enabled
+  let probeReadings: ProbeReading[] | undefined
+  if (options.enableProbeIntervention) {
+    probeReadings = computeProbeReadings(harmonicProgression, alignedMelodyNotes)
+  }
+
+  // Perform Schenkerian analysis if enabled
+  let schenkerianAnalysis: SchenkerianStructure | undefined
+  if (options.schenkerianAnalysis) {
+    schenkerianAnalysis = performSchenkerianAnalysis(harmonicProgression, alignedMelodyNotes)
+    if (options.educationalMode) {
+      educationalNotes.push(
+        `Schenkerian Analysis: ${schenkerianAnalysis.background.length} background level(s), ${schenkerianAnalysis.middleground.length} middleground level(s)`,
+      )
+    }
+  }
+
   const harmonyOnlyXML = createMultiInstrumentHarmonyXML(xmlDoc, harmoniesByInstrument)
   const combinedXML = createCombinedPolyphonicXML(xmlDoc, melodicLines, harmoniesByInstrument, fifths, mode)
 
-  return { harmonyOnlyXML, combinedXML }
+  const result: HarmonizationResult = {
+    harmonyOnlyXML,
+    combinedXML,
+    explanations,
+    educationalNotes,
+  }
+
+  if (probeReadings) result.probeReadings = probeReadings
+  if (schenkerianAnalysis) result.schenkerianAnalysis = schenkerianAnalysis
+
+  return result
 }
 
 function extractNotesPolyphonic(xmlDoc: Document): Note[][] {
@@ -582,6 +1683,9 @@ function generateHarmonicProgressionPolyphonic(
   mode: string,
   enableVariation: boolean,
   rng: SeededRandom,
+  options: HarmonizationOptions = {},
+  explanations: RuleExplanation[] = [],
+  educationalNotes: string[] = [],
 ): Chord[] {
   const scalePitches = scale.map((interval) => (root + interval) % 12)
   const chords: Chord[] = []
@@ -636,6 +1740,9 @@ function generateHarmonicProgressionPolyphonic(
       melodicLines,
       i,
       enableVariation,
+      options,
+      explanations,
+      i,
     )
 
     chords.push(chord)
@@ -658,6 +1765,9 @@ function analyzeVerticalHarmony(
   allMelodicLines: Note[][],
   currentIndex: number,
   enableVariation = false,
+  options: HarmonizationOptions = {},
+  explanations: RuleExplanation[] = [],
+  chordIndex: number = 0,
 ): Chord {
   // Convert all notes to pitch classes
   const pitchClasses = simultaneousNotes.map((n) => n % 12)
@@ -831,6 +1941,7 @@ function analyzeVerticalHarmony(
     simultaneousNotes,
     bestChord.isSeventh,
     chordSeventh,
+    options,
   )
 
   const romanNumeral = getRomanNumeral(
@@ -887,6 +1998,7 @@ function voiceChordPolyphonic(
   inputNotes: number[],
   isSeventh = false,
   chordSeventh: number | null = null,
+  options: HarmonizationOptions = {},
 ): number[] {
   const soprano = melodyPitch
   const sopranoOctave = Math.floor(soprano / 12)
@@ -953,6 +2065,7 @@ function voiceChordPolyphonic(
       altoMax,
       false,
       chordSeventh,
+      options,
     )
     tenorTone = applyVoiceLeadingToVoice(
       tenorTone,
@@ -964,6 +2077,7 @@ function voiceChordPolyphonic(
       tenorMax,
       false,
       chordSeventh,
+      options,
     )
     bassTone = applyVoiceLeadingToVoice(
       bassTone,
@@ -975,6 +2089,7 @@ function voiceChordPolyphonic(
       bassMax,
       true,
       chordSeventh,
+      options,
     )
 
     // Handle tendency tones (7th resolving down, leading tone resolving up)
@@ -1175,6 +2290,9 @@ function generateHarmonicProgression(
   mode: string,
   enableVariation: boolean,
   rng: SeededRandom,
+  options: HarmonizationOptions = {},
+  explanations: RuleExplanation[] = [],
+  educationalNotes: string[] = [],
 ): Chord[] {
   const scalePitches = scale.map((interval) => (root + interval) % 12)
   const chords: Chord[] = []
@@ -1188,6 +2306,27 @@ function generateHarmonicProgression(
   }
 
   melodyNotes.forEach((note, index) => {
+    // Apply bar-level controls if specified
+    const barIndex = Math.floor(index / 4) // Approximate bar index
+    const barControl = options.barLevelControls?.find((bc) => bc.barIndex === barIndex)
+    
+    // Adjust note density based on bar control
+    if (barControl?.density === "sparse" && rng.next() > 0.6) {
+      // Skip some notes for sparse density
+      chords.push({
+        root: 0,
+        quality: "major",
+        inversion: 0,
+        voices: [-1, -1, -1, -1],
+        romanNumeral: "",
+      })
+      context.measurePosition = (context.measurePosition + 1) % 4
+      context.phrasePosition++
+      return
+    } else if (barControl?.density === "dense" && index > 0) {
+      // Add more chords for dense density (subdivide)
+      // This is handled by generating additional chords
+    }
     if (note.pitch === -1) {
       chords.push({
         root: 0,
@@ -1211,6 +2350,9 @@ function generateHarmonicProgression(
       index,
       enableVariation,
       rng,
+      options,
+      explanations,
+      index,
     )
 
     chords.push(chord)
@@ -1408,6 +2550,9 @@ function analyzeAndBuildChord(
   currentIndex: number,
   enableVariation = false,
   rng: SeededRandom,
+  options: HarmonizationOptions = {},
+  explanations: RuleExplanation[] = [],
+  chordIndex: number = 0,
 ): Chord {
   const melodyPitchClass = melodyPitch % 12
   const scaleIndex = scalePitches.indexOf(melodyPitchClass)
@@ -1429,8 +2574,45 @@ function analyzeAndBuildChord(
       context,
       enableVariation ? context.instrumentVariation : 0,
       rng,
+      options,
+      scale,
     )
     chordQuality = getChordQuality(chordScaleDegree, scale === MAJOR_SCALE)
+    
+    // Apply tension parameter to chord quality selection
+    if (options.tension !== undefined && options.tension > 0.5) {
+      // Higher tension: prefer more dissonant chords (diminished, augmented, 7ths)
+      if (rng.next() < (options.tension - 0.5) * 2) {
+        if (chordQuality === "major" && chordScaleDegree === 6) {
+          chordQuality = "diminished"
+        } else if (chordScaleDegree === 4) {
+          chordQuality = "dominant7"
+        }
+      }
+    }
+    
+    if (options.transparencyMode && explanations) {
+      const romanNumeral = getRomanNumeral((keyRoot + scale[chordScaleDegree]) % 12, chordQuality, chordScaleDegree, scale === MAJOR_SCALE, 0)
+      const functionName = HARMONIC_FUNCTIONS[romanNumeral] || "tonic"
+      explanations.push({
+        chordIndex,
+        rule: "Chord Selection",
+        reason: `Selected ${romanNumeral} (${functionName} function) based on melody note scale degree ${scaleIndex + 1}. This chord supports the melodic note and follows the harmonic function flow.`,
+        appliedTo: "chord",
+      })
+      
+      // Add voice leading explanation
+      if (context.previousChord) {
+        const prevFunc = context.previousChord.function || "tonic"
+        const currFunc = functionName
+        explanations.push({
+          chordIndex,
+          rule: "Harmonic Progression",
+          reason: `Progression from ${prevFunc} to ${currFunc} follows classical voice leading principles. ${prevFunc === "dominant" && currFunc === "tonic" ? "This is a strong authentic cadence." : prevFunc === "predominant" && currFunc === "dominant" ? "This prepares the dominant function." : "This maintains harmonic coherence."}`,
+          appliedTo: "progression",
+        })
+      }
+    }
   }
 
   const chordRoot = (keyRoot + scale[chordScaleDegree]) % 12
@@ -1444,7 +2626,7 @@ function analyzeAndBuildChord(
     inversion = 2
   }
 
-  const voices = voiceChord(melodyPitch, chordRoot, chordThird, chordFifth, inversion, context)
+  const voices = voiceChord(melodyPitch, chordRoot, chordThird, chordFifth, inversion, context, options, explanations)
 
   const romanNumeral = getRomanNumeral(chordRoot, chordQuality, chordScaleDegree, scale === MAJOR_SCALE, inversion)
 
@@ -1465,6 +2647,8 @@ function selectChordDegree(
   context: VoiceLeadingContext,
   variation = 0,
   rng: SeededRandom,
+  options: HarmonizationOptions = {},
+  scale: number[] = MAJOR_SCALE,
 ): number {
   if (isEndOfPhrase) {
     if (melodyScaleDegree === 0) return 0
@@ -1498,12 +2682,23 @@ function selectChordDegree(
     return melodyScaleDegree
   }
 
+  // Apply genre-specific preferences
+  const genreRules = GENRE_RULES[options.genre || "classical"] || GENRE_RULES.classical
+  
   const weights = possibleChords.map((degree) => {
     let baseWeight = 1.0
     if (degree === 0) baseWeight = 3.0
     if (degree === 4) baseWeight = 2.5
     if (degree === 3) baseWeight = 2.0
     if (degree === 1 || degree === 5) baseWeight = 1.5
+
+    // Adjust based on genre preferences
+    if (genreRules.preferredProgressions) {
+      const isPreferred = genreRules.preferredProgressions.some(prog => 
+        prog.includes(getRomanNumeral((0 + scale[degree]) % 12, getChordQuality(degree, scale === MAJOR_SCALE), degree, scale === MAJOR_SCALE, 0))
+      )
+      if (isPreferred) baseWeight *= 1.2
+    }
 
     return baseWeight + variation * (rng.next() - 0.5) * 0.5
   })
@@ -1689,6 +2884,8 @@ function voiceChord(
   chordFifth: number,
   inversion: 0 | 1 | 2,
   context: VoiceLeadingContext,
+  options: HarmonizationOptions = {},
+  explanations?: RuleExplanation[],
 ): number[] {
   const soprano = melodyPitch
   const sopranoOctave = Math.floor(soprano / 12)
@@ -1727,7 +2924,7 @@ function voiceChord(
     const prevVoices = context.previousChord.voices
 
     // Apply voice leading with motion priority
-    altoTone = applyVoiceLeadingToVoice(altoTone, prevVoices[1], chordRoot, chordThird, chordFifth, altoMin, altoMax)
+    altoTone = applyVoiceLeadingToVoice(altoTone, prevVoices[1], chordRoot, chordThird, chordFifth, altoMin, altoMax, false, null, options)
     tenorTone = applyVoiceLeadingToVoice(
       tenorTone,
       prevVoices[2],
@@ -1736,6 +2933,9 @@ function voiceChord(
       chordFifth,
       tenorMin,
       tenorMax,
+      false,
+      null,
+      options,
     )
     bassTone = applyVoiceLeadingToVoice(
       bassTone,
@@ -1746,7 +2946,46 @@ function voiceChord(
       bassMin,
       bassMax,
       true,
+      null,
+      options,
     )
+    
+    // Add transparency explanations for voice leading
+    if (options.transparencyMode && explanations) {
+      const altoInterval = Math.abs(altoTone - prevVoices[1])
+      const tenorInterval = Math.abs(tenorTone - prevVoices[2])
+      const bassInterval = Math.abs(bassTone - prevVoices[3])
+      
+      if (altoInterval <= 2) {
+        explanations.push({
+          chordIndex: context.measurePosition,
+          rule: "Voice Leading - Alto",
+          reason: `Alto voice moves by step (${altoInterval} semitones) for smooth voice leading. ${altoTone % 12 === prevVoices[1] % 12 ? "Common tone retained." : ""}`,
+          appliedTo: "voice",
+          voiceIndex: 1,
+        })
+      }
+      
+      if (tenorInterval <= 2) {
+        explanations.push({
+          chordIndex: context.measurePosition,
+          rule: "Voice Leading - Tenor",
+          reason: `Tenor voice moves by step (${tenorInterval} semitones) for smooth voice leading.`,
+          appliedTo: "voice",
+          voiceIndex: 2,
+        })
+      }
+      
+      if (bassInterval <= 5) {
+        explanations.push({
+          chordIndex: context.measurePosition,
+          rule: "Voice Leading - Bass",
+          reason: `Bass voice moves by ${bassInterval <= 2 ? "step" : "small leap"} (${bassInterval} semitones). ${inversion === 0 ? "Root position provides strong harmonic foundation." : inversion === 1 ? "First inversion creates smoother bass line." : "Second inversion used for passing or cadential function."}`,
+          appliedTo: "voice",
+          voiceIndex: 3,
+        })
+      }
+    }
 
     // Enforce spacing
     const voices = [soprano, altoTone, tenorTone, bassTone]
@@ -1788,6 +3027,7 @@ function applyVoiceLeadingToVoice(
   maxRange: number,
   allowLeaps = false,
   chordSeventh: number | null = null,
+  options: HarmonizationOptions = {},
 ): number {
   if (previousPitch === -1) {
     // No previous pitch, just constrain to range
@@ -1801,6 +3041,9 @@ function applyVoiceLeadingToVoice(
   const currentPC = currentPitch % 12
   const previousPC = previousPitch % 12
 
+  // Apply horizontal flow weight - prioritize smooth voice leading over strict chord tones
+  const horizontalWeight = options.horizontalFlowWeight || 0.5
+  
   // Priority 1: Oblique motion (common tone retention) - best
   if (currentPC === previousPC) {
     // Same pitch class - keep same or move to adjacent octave if needed
@@ -1809,13 +3052,16 @@ function applyVoiceLeadingToVoice(
     return currentPitch
   }
 
-  // Priority 2: Stepwise motion (2nd) - very good
+  // Priority 2: Stepwise motion (2nd) - very good (prioritized by horizontal flow)
   const stepwiseInterval = Math.abs(currentPC - previousPC)
   if (stepwiseInterval === 1 || stepwiseInterval === 11) {
-    // Stepwise motion - keep it
-    while (currentPitch < minRange) currentPitch += 12
-    while (currentPitch > maxRange) currentPitch -= 12
-    return currentPitch
+    // Stepwise motion - keep it (even if not a chord tone, if horizontal flow is prioritized)
+    const isChordTone = [chordRoot, chordThird, chordFifth, chordSeventh].filter(t => t !== null).includes(currentPC)
+    if (isChordTone || horizontalWeight > 0.6) {
+      while (currentPitch < minRange) currentPitch += 12
+      while (currentPitch > maxRange) currentPitch -= 12
+      return currentPitch
+    }
   }
 
   // Priority 3: Small leaps (3rd, 4th) - acceptable
@@ -2322,6 +3568,7 @@ function findBestInversionForCommonTone(
   keyRoot: number,
   scale: number[],
   isMajor: boolean,
+  options: HarmonizationOptions = {},
 ): Chord | null {
   const chordThird = (currentChord.root + (currentChord.quality === "major" ? 4 : 3)) % 12
   const chordFifth = (currentChord.root + (currentChord.quality === "diminished" ? 6 : 7)) % 12
@@ -2345,6 +3592,8 @@ function findBestInversionForCommonTone(
         chordFifth,
         best.inversion as 0 | 1 | 2,
         { previousChord, previousMelody: null, measurePosition: 0, phrasePosition: 0, instrumentVariation: 0 },
+        options,
+        undefined, // explanations not available in this context
       ),
     }
   }

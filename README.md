@@ -59,6 +59,95 @@ The system supports 13 different instruments across strings, woodwinds, brass, a
 - **Dual Output**: Generates both harmony-only and combined (melody + harmony) MusicXML files
 - **Visual Score Display**: Renders generated scores using OpenSheetMusicDisplay
 
+### Advanced Features
+
+#### 1. Musical Quality & Sophisticated Control
+
+- **Advanced Structural Coherence**: 
+  - Hierarchical architecture for long-term dependencies
+  - Phrase development and global form planning
+  - Multi-level structural analysis (foreground, middleground, background)
+  - Automatic phrase detection and cadence placement
+
+- **Compositional Techniques**:
+  - **Fragmentation**: Break down motifs into smaller fragments
+  - **Sequence**: Transpose motifs up or down by specified intervals
+  - **Inversion**: Invert melodic motifs around a pivot note
+  - **Augmentation**: Double note durations for dramatic effect
+  - **Diminution**: Halve note durations for increased energy
+
+- **Tonal Tension/Emotion Parameter**:
+  - Emotion-aware generation (0-1 scale: sad/melancholic to happy/energetic)
+  - Tonal tension control (0-1 scale: consonant to dissonant)
+  - Automatic chord quality adjustment based on emotion settings
+
+- **Expressive Performance Modeling**:
+  - Dynamic markings (pp, p, mp, mf, f, ff)
+  - Articulation styles (staccato, legato, tenuto, marcato)
+  - Rubato (tempo variation) at phrase endings
+  - Automatic expressive markings based on phrase position
+
+#### 2. Guaranteed, Fine-Grained Control
+
+- **Pitch-Accurate Harmonic Constraints**:
+  - Hard constraints using pitch-class sets (guaranteed tonal correctness)
+  - Scale constraint mode (eliminates unintentional out-of-key notes)
+  - Automatic correction to nearest allowed pitch class
+
+- **Fine-Grained Hierarchical Controls**:
+  - **Bar-Level Controls**: Per-bar settings for density, polyphony, rhythmic complexity, articulation, dynamics
+  - **Track-Level Controls**: Per-instrument settings for note density, polyphony rate, rhythmic patterns
+  - **Measure-by-Measure**: Precise control over specific measures without disrupting entire composition
+  - **Voice Locking**: Lock specific voices (Soprano, Alto, Tenor, Bass) to prevent modification
+
+- **Non-Sequential and Infilling Workflows**:
+  - **Infilling**: Generate missing segments based on both preceding and subsequent context (anticipation)
+  - **Iterative Refinement**: Refine specific sections without regenerating entire composition
+  - **Harmony from Melody**: Generate harmony from existing melody (already supported)
+
+#### 3. Enhancing Usability and Interaction
+
+- **DAW Integration**:
+  - MusicXML output for seamless import into Digital Audio Workstations (Cubase, Ableton Live, etc.)
+  - Standard MusicXML format ensures compatibility with all major notation software
+
+- **Multiple Alternatives**:
+  - Generate multiple harmonization alternatives simultaneously
+  - Audition and select the best match for creative intent
+  - Each alternative uses different tension/emotion parameters
+
+- **Semantic and Example-Based Steering**:
+  - **Semantic Sliders**: High-level interpretable controls
+    - Conventional ↔ Surprising
+    - Happy ↔ Sad
+    - Simple ↔ Complex
+    - Stable ↔ Unstable
+  - **Example-Based Steering**: Generate harmonizations similar to provided examples (future enhancement)
+
+#### 4. Transparency and Interpretability
+
+- **Transparency/Explanation Mode**:
+  - Detailed explanations for every chord selection
+  - Voice leading rationale for each voice
+  - Harmonic function flow explanations
+  - Rule adherence documentation (e.g., "This chord was chosen to achieve a Tonic-Dominant transition")
+
+- **Probe-Assisted Intervention**:
+  - Real-time probe readings for non-differentiable musical concepts:
+    - **Syncopation Index**: Measure of rhythmic complexity
+    - **Tonal Tension**: Harmonic tension level (0-1)
+    - **Harmonic Complexity**: Complexity of chord structures
+    - **Voice Leading Smoothness**: Quality of voice leading transitions
+  - Interpretable musical concept manipulation
+
+- **Domain-Informed Structure**:
+  - **Schenkerian Analysis**: Multi-level hierarchical analysis
+    - Foreground: Surface-level chords
+    - Middleground: Intermediate structural chords
+    - Background: Deep structure (tonic-dominant-tonic)
+  - Formal structure visualization
+  - Phrase and cadence analysis
+
 ### User Interface
 
 - **Modern, Responsive Design**: Built with React, TypeScript, and Tailwind CSS
@@ -768,12 +857,46 @@ Harmonizes a melody with selected instruments.
 **Form Fields**:
 - `file` (File): MusicXML or MIDI file (max 50MB)
 - `instruments` (String): Comma-separated list of instrument names
+- `tension` (Number, optional): 0-1, tonal tension level (default: 0.3)
+- `emotion` (Number, optional): 0-1, emotion parameter (0=sad, 1=happy)
+- `genre` (String, optional): "classical" | "jazz" | "contemporary" | "romantic" | "baroque" (default: "classical")
+- `horizontalFlowWeight` (Number, optional): 0-1, weight for horizontal vs vertical rules (default: 0.5)
+- `enableCompositionalTechniques` (Boolean, optional): Enable compositional techniques
+- `compositionalTechniques` (JSON, optional): Array of compositional technique objects
+- `barLevelControls` (JSON, optional): Array of bar-level control objects
+- `generateAlternatives` (Number, optional): Number of alternative harmonizations to generate
+- `transparencyMode` (Boolean, optional): Enable detailed explanations
+- `educationalMode` (Boolean, optional): Enable educational notes
+- `scaleConstraint` (Boolean, optional): Guarantee all notes conform to scale
+- `pitchClassSet` (JSON, optional): Array of allowed pitch classes (0-11)
+- `enableExpressivePerformance` (Boolean, optional): Enable dynamics, phrasing, rubato
+- `enableProbeIntervention` (Boolean, optional): Enable probe-assisted intervention
+- `schenkerianAnalysis` (Boolean, optional): Enable Schenkerian analysis
+- `semanticSliders` (JSON, optional): Semantic slider values
+- `enableInfilling` (Boolean, optional): Enable infilling workflow
+- `infillingRange` (JSON, optional): { start: number, end: number } for infilling
 
 **Example**:
 ```bash
 curl -X POST http://localhost:3001/api/harmonize \
   -F "file=@melody.xml" \
-  -F "instruments=Violin,Viola,Cello"
+  -F "instruments=Violin,Viola,Cello" \
+  -F "tension=0.4" \
+  -F "emotion=0.7" \
+  -F "transparencyMode=true" \
+  -F "enableExpressivePerformance=true" \
+  -F "generateAlternatives=3"
+```
+
+**Advanced Example with Compositional Techniques**:
+```bash
+curl -X POST http://localhost:3001/api/harmonize \
+  -F "file=@melody.xml" \
+  -F "instruments=Violin,Viola,Cello" \
+  -F "enableCompositionalTechniques=true" \
+  -F 'compositionalTechniques=[{"type":"sequence","startIndex":8,"length":4,"interval":2,"direction":"up"}]' \
+  -F "schenkerianAnalysis=true" \
+  -F "enableProbeIntervention=true"
 ```
 
 #### Response
@@ -794,7 +917,39 @@ curl -X POST http://localhost:3001/api/harmonize \
     "processingTime": 2341,
     "timestamp": "2024-01-15T10:30:00.000Z",
     "originalFilename": "melody.xml"
-  }
+  },
+  "explanations": [
+    {
+      "chordIndex": 0,
+      "rule": "Chord Selection",
+      "reason": "Selected I (tonic function) based on melody note scale degree 1...",
+      "appliedTo": "chord"
+    }
+  ],
+  "educationalNotes": [
+    "Key: C major (major)",
+    "Scale degrees: C, D, E, F, G, A, B"
+  ],
+  "probeReadings": [
+    {
+      "concept": "tonalTension",
+      "value": 0.35,
+      "chordIndex": 0,
+      "explanation": "Tonal tension: 0.35 (low)"
+    }
+  ],
+  "schenkerianAnalysis": {
+    "foreground": [...],
+    "middleground": [...],
+    "background": [...],
+    "levels": 3
+  },
+  "alternatives": [
+    {
+      "harmonyOnly": {...},
+      "combined": {...}
+    }
+  ]
 }
 ```
 
